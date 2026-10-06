@@ -1,0 +1,19 @@
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+  app:
+    build: .
+    environment:
+      ENVIRONMENT: development
+      SQLITE_PATH: /data/app.sqlite
+      APP_SECRET: docker-dev-secret-change-me
+      MAILPIT_URL: http://mailpit:8025
+      MAIL_FROM: SDU Career Match <no-reply@careermatch.local>
+      TRUST_PROXY_HEADERS: "1"
+      ALLOWED_ORIGINS: http://localhost:8787,http://127.0.0.1:8787
+      SEED: "1"
+    volumes: [appdata:/data]
+    ports: ["127.0.0.1:8787:8787"]
+volumes:
+  appdata:

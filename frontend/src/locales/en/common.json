@@ -1,0 +1,73 @@
+{
+  "appName": "SDU Career Match",
+  "language": "Language",
+  "loading": "Loading…",
+  "save": "Save changes",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "next": "Next",
+  "back": "Back",
+  "step": "Step {{current}} of {{total}}",
+  "logout": "Log out",
+  "close": "Close",
+  "skip": "Skip to content",
+  "titles": {
+    "login": "Sign in",
+    "register": "Create account",
+    "recover": "Password recovery",
+    "verify": "Verify email",
+    "dashboard": "Dashboard",
+    "profile": "My profile",
+    "notFound": "Page not found"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "vacancies": "Internships",
+    "applications": "Applications",
+    "recommendations": "Recommendations",
+    "myVacancies": "My vacancies",
+    "candidates": "Candidates",
+    "approvals": "Employer approvals",
+    "analytics": "Analytics",
+    "soon": "soon",
+    "menu": "Main navigation",
+    "cv": "My CV",
+    "notifications": "Notifications",
+    "resume": "Résumé",
+    "favorites": "Favourites",
+    "talent": "Talent pool",
+    "ai": "AI Studio",
+    "builder": "Builder",
+    "messages": "Messages"
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{name}}!",
+    "roleStudent": "Student",
+    "roleEmployer": "Employer",
+    "roleAdmin": "Administrator",
+    "pending": "Your company is awaiting administrator approval. You can edit your company profile, but you cannot publish vacancies yet.",
+    "active": "Your account is active.",
+    "completeProfile": "Complete your profile",
+    "completeProfileText": "Add your skills so we can match you with internships later.",
+    "cardCv": "Upload your CV — skills are found automatically.",
+    "cardSearch": "Search with match % for every vacancy.",
+    "cardRec": "Best matches and skills to learn.",
+    "cardApps": "Track the status of your applications.",
+    "cardNew": "New vacancy",
+    "cardNewText": "Post an internship with required skills.",
+    "cardMine": "Manage drafts, published and closed vacancies.",
+    "cardCand": "Applicants ranked by match %.",
+    "cardCompany": "Edit your company details.",
+    "cardApprovals": "Approve new employers.",
+    "cardAnalytics": "Matches, activity and top skills."
+  },
+  "toast": {
+    "saved": "Changes saved",
+    "langError": "Could not save language"
+  },
+  "notFound": {
+    "text": "The page you are looking for does not exist.",
+    "home": "Go to start"
+  }
+}

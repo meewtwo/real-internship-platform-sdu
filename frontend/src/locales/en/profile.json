@@ -1,0 +1,35 @@
+{
+  "student": {
+    "title": "Student profile",
+    "subtitle": "Keep your details up to date to get better matches."
+  },
+  "employer": {
+    "title": "Company profile",
+    "subtitle": "Your company details are shown to students."
+  },
+  "readonly": {
+    "studentId": "Student ID (cannot be changed)",
+    "email": "Email (cannot be changed)",
+    "bin": "BIN / IIN (cannot be changed)"
+  },
+  "skills": {
+    "label": "Skills",
+    "placeholder": "Type a skill and press Enter",
+    "hint": "Up to 30 skills, 2–40 characters each.",
+    "count": "{{n}}/{{max}}",
+    "remove": "Remove {{name}}",
+    "suggestions": "Suggestions"
+  },
+  "interests": {
+    "label": "Interests",
+    "placeholder": "Add an interest and press Enter",
+    "hint": "Up to 10 interests."
+  },
+  "status": {
+    "pending": "Pending approval",
+    "active": "Active",
+    "label": "Status"
+  },
+  "loadError": "Could not load your profile",
+  "saveError": "Could not save changes"
+}

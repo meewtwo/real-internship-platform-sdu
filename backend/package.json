@@ -1,0 +1,28 @@
+{
+  "name": "@sdu/backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/node.ts",
+    "start": "tsx src/node.ts",
+    "migrate": "tsx src/cli/migrate.ts",
+    "seed": "tsx src/cli/seed.ts",
+    "digest": "tsx src/cli/digest.ts",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "dev:worker": "wrangler dev"
+  },
+  "dependencies": {
+    "@sdu/shared": "*",
+    "fflate": "^0.8.3",
+    "hono": "^4.6.0",
+    "unpdf": "^1.8.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "@hono/node-server": "^1.13.0",
+    "@types/node": "^22.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
