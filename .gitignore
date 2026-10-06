@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+test-results
+playwright-report
+*.log
+.wrangler
+
+backend/.data/
+backend/.wrangler/
