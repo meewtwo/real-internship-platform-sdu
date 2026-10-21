@@ -54,7 +54,7 @@ function validate(data: unknown, n: number): number[][] {
 
 const humanize = (k: string) => k.replace(/_/g, ' ');
 export function studentText(s: StudentSignal, names: string[]): string {
-  const parts = [humanize(s.majorKey), humanize(s.interestArea), [...new Set([...s.skills, ...s.cvSkills])].join(', '), s.interests.join(', '), s.cvText.slice(0, MAX_CHARS)];
+  const parts = [humanize(s.majorKey), s.interestOther || humanize(s.interestArea), [...new Set([...s.skills, ...s.cvSkills])].join(', '), s.interests.join(', '), s.cvText.slice(0, MAX_CHARS)];
   return redactPii(parts.filter(Boolean).join('. '), names).slice(0, MAX_CHARS);
 }
 export function vacancyText(v: Pick<VacancyRow, 'title' | 'skills' | 'description'>): string {

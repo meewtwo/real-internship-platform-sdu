@@ -26,7 +26,7 @@ export async function loadProfile(q: Queryable, userId: string, role: string) {
     const { rows } = await q.query<Record<string, unknown>>(
       `SELECT sp.name, sp.surname, u.phone, sp.city_key AS city, sp.city_other AS "cityOther", sp.major_key AS major,
               sp.year_of_study AS "yearOfStudy", sp.gpa AS gpa, substr(sp.graduation_date, 1, 7) AS graduation,
-              sp.interest_area AS "interestArea", sp.relocation, sp.interests,
+              sp.interest_area AS "interestArea", sp.interest_other AS "interestOther", sp.relocation, sp.interests,
               COALESCE((SELECT json_group_array(name) FROM (SELECT s.name AS name FROM student_skills ss JOIN skills s ON s.id = ss.skill_id WHERE ss.user_id = sp.user_id ORDER BY s.name)), '[]') AS skills
        FROM student_profiles sp JOIN users u ON u.id = sp.user_id WHERE sp.user_id = $1`,
       [userId],
@@ -35,7 +35,7 @@ export async function loadProfile(q: Queryable, userId: string, role: string) {
   }
   if (role === 'employer') {
     const { rows } = await q.query<Record<string, unknown>>(
-      `SELECT ep.company_name AS "companyName", ep.bin, ep.industry_key AS industry, ep.size_key AS size, ep.city_key AS city,
+      `SELECT ep.company_name AS "companyName", ep.bin, ep.industry_key AS industry, ep.industry_other AS "industryOther", ep.size_key AS size, ep.city_key AS city,
               ep.city_other AS "cityOther", ep.contact_name AS "contactName", ep.contact_surname AS "contactSurname", ep.position,
               u.phone, ep.website, ep.description
        FROM employer_profiles ep JOIN users u ON u.id = ep.user_id WHERE ep.user_id = $1`,
@@ -46,9 +46,19 @@ export async function loadProfile(q: Queryable, userId: string, role: string) {
   return null;
 }
 
+/** The company's admin review (read-only, so it is kept out of the editable `profile` object). */
+async function loadReview(q: Queryable, userId: string) {
+  const r = (await q.query<{ status: string; reason: string | null; reviewedAt: string | null }>(
+    'SELECT review_status AS status, rejection_reason AS reason, reviewed_at AS "reviewedAt" FROM employer_profiles WHERE user_id = $1', [userId])).rows[0];
+  return r ?? null;
+}
+
 profile.get('/', async (c) => {
   const a = c.var.auth!;
-  return c.json({ user: a.user, profile: await loadProfile(c.var.db, a.user.id, a.user.role) });
+  return c.json({
+    user: a.user, profile: await loadProfile(c.var.db, a.user.id, a.user.role),
+    ...(a.user.role === 'employer' ? { review: await loadReview(c.var.db, a.user.id) } : {}),
+  });
 });
 
 profile.put('/student', async (c) => {
@@ -63,8 +73,8 @@ profile.put('/student', async (c) => {
     await c.var.db.batch([
       { sql: 'UPDATE users SET phone = $2 WHERE id = $1', params: [a.user.id, d.phone] },
       { sql: `UPDATE student_profiles SET name = $2, surname = $3, city_key = $4, city_other = $5, major_key = $6, year_of_study = $7,
-           gpa = $8, graduation_date = $9, interest_area = $10, relocation = $11, interests = $12 WHERE user_id = $1`,
-        params: [a.user.id, d.name, d.surname, d.city, d.cityOther, d.major, d.yearOfStudy, d.gpa, `${d.graduation}-01`, d.interestArea, d.relocation, d.interests] },
+           gpa = $8, graduation_date = $9, interest_area = $10, relocation = $11, interests = $12, interest_other = $13 WHERE user_id = $1`,
+        params: [a.user.id, d.name, d.surname, d.city, d.cityOther, d.major, d.yearOfStudy, d.gpa, `${d.graduation}-01`, d.interestArea, d.relocation, d.interests, d.interestOther] },
       ...replaceSkillsStmts('student_skills', 'user_id', a.user.id, d.skills),
     ]);
   } catch (e) {
@@ -88,8 +98,8 @@ profile.put('/employer', async (c) => {
     await c.var.db.batch([
       { sql: 'UPDATE users SET phone = $2 WHERE id = $1', params: [a.user.id, d.phone] },
       { sql: `UPDATE employer_profiles SET company_name = $2, company_lc = $12, industry_key = $3, size_key = $4, city_key = $5, city_other = $6,
-           contact_name = $7, contact_surname = $8, position = $9, website = $10, description = $11 WHERE user_id = $1`,
-        params: [a.user.id, d.companyName, d.industry, d.size, d.city, d.cityOther, d.contactName, d.contactSurname, d.position, d.website, d.description, d.companyName.toLocaleLowerCase()] },
+           contact_name = $7, contact_surname = $8, position = $9, website = $10, description = $11, industry_other = $13 WHERE user_id = $1`,
+        params: [a.user.id, d.companyName, d.industry, d.size, d.city, d.cityOther, d.contactName, d.contactSurname, d.position, d.website, d.description, d.companyName.toLocaleLowerCase(), d.industryOther] },
     ]);
   } catch (e) {
     const pe = asDbError(e);

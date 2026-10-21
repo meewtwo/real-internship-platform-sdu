@@ -8,7 +8,11 @@
   "date": "{{date}}",
   "matchPct": "{{n}}% match",
   "matchAria": "Match: {{n}} percent",
-  "company": "Company",
+  "company": {
+    "rejectedTitle": "Your company registration was rejected.",
+    "reason": "Reason",
+    "rejectedHelp": "If you think this is a mistake, contact the SDU Career Center — an administrator can review your company again. Until then, vacancies cannot be published."
+  },
   "deadline": "Deadline: {{date}}",
   "noDeadline": "No deadline",
   "minGpa": "Min GPA {{gpa}}",
@@ -173,6 +177,7 @@
     "status_changed": "“{{title}}” at {{company}}: {{status}}",
     "new_match": "New {{percent}}% match: “{{title}}” at {{company}}",
     "employer_approved": "Your company was approved — you can publish vacancies now.",
+    "employer_rejected": "Your company registration was not approved. Open My vacancies to see the reason.",
     "invitation": "{{company}} invites you to apply: “{{title}}”",
     "saved_search": "New in your saved search “{{search}}”: “{{title}}” at {{company}}",
     "new_message": "{{from}} sent you a message about “{{title}}”",
@@ -182,13 +187,33 @@
     "interview_cancelled": "{{from}} cancelled the interview for “{{title}}” ({{when}})"
   },
   "approvals": {
-    "title": "Employer approvals",
-    "empty": "No employers are waiting for approval.",
+    "title": "Companies",
+    "subtitle": "Review new companies. Only approved companies can publish vacancies.",
+    "filter": "Filter by review status",
+    "tabs": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "empty": {
+      "pending": "No companies are waiting for approval.",
+      "approved": "No approved companies yet.",
+      "rejected": "No rejected companies."
+    },
     "approve": "Approve",
     "reject": "Reject",
-    "approved": "Employer approved",
-    "rejected": "Employer rejected",
-    "bin": "BIN {{bin}}"
+    "approved": "Company approved",
+    "rejected": "Company rejected",
+    "bin": "IIN {{bin}}",
+    "registered": "registered {{date}}",
+    "reviewed": {
+      "approved": "Approved {{date}} by {{by}}",
+      "rejected": "Rejected {{date}} by {{by}}"
+    },
+    "reason": "Reason",
+    "reasonLabel": "Reason for rejection (optional, shown to the employer)",
+    "reasonPh": "e.g. The IIN does not match the company name",
+    "confirmReject": "Reject company"
   },
   "an": {
     "title": "Platform analytics",
@@ -278,44 +303,6 @@
     "kicker": "Career platform",
     "why": "Why SDU Career"
   },
-  "resume": {
-    "title": "My résumé",
-    "subtitle": "Built from your SDU courses. Edit the text, print it or add the skills to your profile.",
-    "importTitle": "Import from SDU portal",
-    "importText": "Copy your transcript from the portal (or upload its PDF) and we turn the courses you passed into a résumé.",
-    "paste": "Paste transcript text",
-    "pastePh": "2025 Fall  CSC 210  Database Systems  6  A",
-    "build": "Build résumé",
-    "upload": "or upload PDF / TXT",
-    "demo": "Try with demo transcript",
-    "demoNote": "Demo data is generated for your major — it is not read from the real portal.",
-    "src": {
-      "portal_demo": "Demo data",
-      "portal_transcript": "Imported from transcript"
-    },
-    "about": "About me",
-    "edit": "Edit text",
-    "education": "Education",
-    "courses": "Key courses",
-    "allCourses": "All courses ({{n}})",
-    "code": "Code",
-    "course": "Course",
-    "credits": "Credits",
-    "grade": "Grade",
-    "skills": "Skills from courses",
-    "addSkills": "Add skills to my profile",
-    "added": "Added {{n}} skills to your profile",
-    "nothing": "Your profile already has these skills",
-    "experience": "Experience (from your CV)",
-    "print": "Print / save as PDF",
-    "delete": "Delete résumé",
-    "deleted": "Résumé deleted",
-    "saved": "Text saved",
-    "gpa": "GPA {{gpa}} · {{credits}} credits",
-    "contacts": "Contacts",
-    "banner": "Build a résumé from your SDU courses in one click.",
-    "bannerBtn": "Open"
-  },
   "dash": {
     "hello": "Hello, {{name}}",
     "studentSub": "Here is what is happening with your job search.",
@@ -324,7 +311,7 @@
     "profileReady": "Profile ready",
     "steps": "Complete your profile",
     "stepSkills": "Add at least 3 skills",
-    "stepResume": "Build your résumé from SDU courses",
+    "stepResume": "Create a résumé in the Builder",
     "stepCv": "Upload your CV file",
     "stepApply": "Send your first application",
     "tileApps": "Applications",

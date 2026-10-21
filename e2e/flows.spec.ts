@@ -341,10 +341,15 @@ test.describe('profiles (persisted through the API)', () => {
     await page.goto('/register?role=employer');
     const next = page.getByRole('button', { name: 'Next' });
     await page.getByLabel('Company name').fill('Acme Technologies LLP');
-    await page.getByLabel('BIN / IIN').fill(e.bin);
+    await page.getByLabel('IIN', { exact: true }).fill(e.bin);
     await pickCity(page, 'Ast');
-    await page.getByLabel('Industry').selectOption('it_software');
+    // "Other" industry asks for the company's own words below the dropdown, and Next waits for them
+    await expect(page.getByLabel('Your industry')).toHaveCount(0);
+    await page.getByLabel('Industry', { exact: true }).selectOption('other');
+    await expect(page.getByPlaceholder('Please specify your industry')).toBeVisible();
     await page.getByLabel('Company size').selectOption('s51_200');
+    await expect(next).toBeDisabled();
+    await page.getByLabel('Your industry').fill('  Esports');
     await next.click();
     await page.getByLabel('Contact first name').fill('Timur');
     await page.getByLabel('Contact last name').fill('Ospanov');
@@ -364,7 +369,9 @@ test.describe('profiles (persisted through the API)', () => {
     await typeCode(page, await lastCode(page, e.email));
     await expect(page.getByText(/awaiting administrator approval/)).toBeVisible();
     await page.goto('/profile');
-    await expect(page.getByLabel(/BIN/)).toHaveValue(e.bin);
+    await expect(page.getByLabel(/IIN/)).toHaveValue(e.bin);
+    await expect(page.getByLabel('Industry', { exact: true })).toHaveValue('other');
+    await expect(page.getByLabel('Your industry')).toHaveValue('Esports');
     await page.getByLabel('Company name').fill('Acme Renamed LLP');
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(page.getByText('Changes saved')).toBeVisible();

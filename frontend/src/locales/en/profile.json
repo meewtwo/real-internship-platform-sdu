@@ -10,7 +10,7 @@
   "readonly": {
     "studentId": "Student ID (cannot be changed)",
     "email": "Email (cannot be changed)",
-    "bin": "BIN / IIN (cannot be changed)"
+    "bin": "IIN (cannot be changed)"
   },
   "skills": {
     "label": "Skills",
@@ -28,7 +28,8 @@
   "status": {
     "pending": "Pending approval",
     "active": "Active",
-    "label": "Status"
+    "label": "Status",
+    "rejected": "Rejected"
   },
   "loadError": "Could not load your profile",
   "saveError": "Could not save changes"

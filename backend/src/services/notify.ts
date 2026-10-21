@@ -1,6 +1,6 @@
 import type { Queryable, Stmt } from '../lib/db';
 
-export type NotifKind = 'new_application' | 'status_changed' | 'new_match' | 'employer_approved' | 'invitation' | 'new_message' | 'interview_update' | 'saved_search';
+export type NotifKind = 'new_application' | 'status_changed' | 'new_match' | 'employer_approved' | 'employer_rejected' | 'invitation' | 'new_message' | 'interview_update' | 'saved_search';
 /** Stores machine-readable notification params; the client renders the text in the user's language. */
 export async function notify(q: Queryable, userId: string, kind: NotifKind, params: Record<string, unknown>, link: string | null) {
   await q.query('INSERT INTO notifications (user_id, kind, params, link) VALUES ($1, $2, $3, $4)', [userId, kind, JSON.stringify(params), link]);

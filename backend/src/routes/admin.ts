@@ -20,33 +20,73 @@ admin.use('*', async (c, next) => {
   await next();
 });
 
+export const REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
+type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export const REJECTION_REASON_MAX = 500;
+// verified accounts only (an employer that has not confirmed the e-mail yet is not up for review)
+const VERIFIED = `u.role = 'employer' AND u.status <> 'unverified'`;
+
+/** Companies by review status (?status=pending|approved|rejected, default pending) + per-status counts for the tabs. */
 admin.get('/employers', async (c) => {
-  const status = c.req.query('status') ?? 'pending';
-  if (!['pending', 'active', 'blocked'].includes(status)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { status: 'VALIDATION_FAILED' } });
+  const status = (c.req.query('status') ?? 'pending') as ReviewStatus;
+  if (!REVIEW_STATUSES.includes(status)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { status: 'VALIDATION_FAILED' } });
   const { rows } = await c.var.db.query(
-    `SELECT u.id, u.email, u.status, u.created_at AS "createdAt", ep.company_name AS "companyName", ep.bin, ep.contact_name AS "contactName", ep.contact_surname AS "contactSurname"
-     FROM users u JOIN employer_profiles ep ON ep.user_id = u.id WHERE u.role = 'employer' AND u.status = $1 ORDER BY u.created_at LIMIT 200`,
+    `SELECT u.id, u.email, u.phone, u.status, u.created_at AS "createdAt", ep.company_name AS "companyName", ep.bin, ep.industry_key AS industry, ep.industry_other AS "industryOther",
+            ep.size_key AS size, ep.city_key AS city, ep.city_other AS "cityOther", ep.contact_name AS "contactName", ep.contact_surname AS "contactSurname", ep.position,
+            ep.website, ep.description, ep.review_status AS "reviewStatus", ep.rejection_reason AS "rejectionReason", ep.reviewed_at AS "reviewedAt", rv.email AS "reviewedBy"
+     FROM users u JOIN employer_profiles ep ON ep.user_id = u.id LEFT JOIN users rv ON rv.id = ep.reviewed_by
+     WHERE ${VERIFIED} AND ep.review_status = $1 ORDER BY ${status === 'pending' ? 'u.created_at' : 'ep.reviewed_at DESC'} LIMIT 200`,
     [status],
   );
-  return c.json({ employers: rows });
+  const counts = (await c.var.db.query<{ pending: number; approved: number; rejected: number }>(
+    `SELECT count(*) FILTER (WHERE ep.review_status = 'pending') AS pending, count(*) FILTER (WHERE ep.review_status = 'approved') AS approved,
+            count(*) FILTER (WHERE ep.review_status = 'rejected') AS rejected FROM users u JOIN employer_profiles ep ON ep.user_id = u.id WHERE ${VERIFIED}`)).rows[0];
+  return c.json({ employers: rows, counts });
 });
 
-async function setStatus(c: Ctx, from: string, to: string) {
+/**
+ * Approve (from pending or rejected) or reject (from pending, optional reason). Rejecting keeps the account signed-in-able (status 'pending')
+ * so the employer sees the reason; approving activates it, which is what unlocks publishing. All writes commit atomically, tied to one stamp.
+ */
+async function review(c: Ctx, to: 'approved' | 'rejected') {
   const id = c.req.param('id') ?? '';
   if (!UUID_RE.test(id)) return apiError(c, 404, 'NOT_FOUND');
-  const stamp = uniqueStamp();
-  const proof = 'SELECT 1 FROM users WHERE id = $5 AND status = $6 AND updated_at = $7';
-  const pp = [id, to, stamp];
+  let reason: string | null = null;
+  const text = to === 'rejected' ? (await c.req.text()).trim() : '';
+  if (text) { // the body ({ reason }) is optional
+    if (!/^application\/json\b/i.test(c.req.header('content-type') ?? '')) return apiError(c, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    let body: unknown;
+    try { body = JSON.parse(text); } catch { return apiError(c, 400, 'INVALID_JSON'); }
+    const raw = (body as { reason?: unknown } | null)?.reason;
+    if (raw !== undefined && raw !== null && typeof raw !== 'string') return apiError(c, 400, 'VALIDATION_FAILED', { fields: { reason: 'VALIDATION_FAILED' } });
+    reason = typeof raw === 'string' ? raw.normalize('NFC').trim() || null : null;
+    if (reason && Array.from(reason).length > REJECTION_REASON_MAX) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { reason: 'REJECTION_REASON_TOO_LONG' } });
+  }
+  const admin = c.var.auth!.user;
+  const stamp = uniqueStamp(), now = iso();
+  const proof = 'SELECT 1 FROM users WHERE id = $5 AND updated_at = $6';
+  const pp = [id, stamp];
+  const claim = to === 'approved'
+    // 'blocked' + rejected = a company rejected before rejections kept the account usable
+    ? `UPDATE users SET status = 'active', updated_at = $2 WHERE id = $1 AND role = 'employer'
+         AND ((status = 'pending' AND EXISTS (SELECT 1 FROM employer_profiles WHERE user_id = $1 AND review_status IN ('pending', 'rejected')))
+           OR (status = 'blocked' AND EXISTS (SELECT 1 FROM employer_profiles WHERE user_id = $1 AND review_status = 'rejected'))) RETURNING id`
+    : `UPDATE users SET updated_at = $2 WHERE id = $1 AND role = 'employer' AND status = 'pending'
+         AND EXISTS (SELECT 1 FROM employer_profiles WHERE user_id = $1 AND review_status = 'pending') RETURNING id`;
   const rs = await c.var.db.batch([
-    { sql: `UPDATE users SET status = $3, updated_at = $4 WHERE id = $1 AND role = 'employer' AND status = $2 RETURNING id`, params: [id, from, to, stamp] },
-    ...(to === 'active' ? [notifyIf(proof, pp, id, 'employer_approved', {}, '/vacancies/mine')] : []),
-    auditIf('SELECT 1 FROM users WHERE id = $7 AND status = $8 AND updated_at = $9', pp, { id: c.var.auth!.user.id, role: 'admin' }, to === 'active' ? 'employer.approve' : 'employer.reject', { type: 'user', id }),
+    { sql: claim, params: [id, stamp] },
+    { sql: `UPDATE employer_profiles SET review_status = $2, rejection_reason = $3, reviewed_by = $4, reviewed_at = $5 WHERE user_id = $1 AND EXISTS (SELECT 1 FROM users WHERE id = $1 AND updated_at = $6)`,
+      params: [id, to, reason, admin.id, now, stamp] },
+    to === 'approved'
+      ? notifyIf(proof, pp, id, 'employer_approved', {}, '/vacancies/mine')
+      : notifyIf(proof, pp, id, 'employer_rejected', reason ? { reason } : {}, '/vacancies/mine'),
+    auditIf('SELECT 1 FROM users WHERE id = $7 AND updated_at = $8', pp, { id: admin.id, role: 'admin' }, to === 'approved' ? 'employer.approve' : 'employer.reject', { type: 'user', id }, to === 'rejected' ? { withReason: !!reason } : {}),
   ]);
-  const ok = rs[0].rowCount > 0;
-  return ok ? c.json({ ok: true, status: to }) : apiError(c, 404, 'NOT_FOUND');
+  if (rs[0].rowCount === 0) return apiError(c, 404, 'NOT_FOUND');
+  return c.json({ ok: true, status: to === 'approved' ? 'active' : 'pending', reviewStatus: to, rejectionReason: reason });
 }
-admin.post('/employers/:id/approve', (c) => setStatus(c, 'pending', 'active'));
-admin.post('/employers/:id/reject', (c) => setStatus(c, 'pending', 'blocked'));
+admin.post('/employers/:id/approve', (c) => review(c, 'approved'));
+admin.post('/employers/:id/reject', (c) => review(c, 'rejected'));
 
 /** Platform analytics (US-12). */
 admin.get('/analytics', async (c) => {

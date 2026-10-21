@@ -41,9 +41,9 @@ vacancies.post('/', requireAuth('employer'), async (c) => {
   if (!rl.allowed) return apiError(c, 429, 'RATE_LIMITED', { retryAfter: rl.retryAfter });
   const id = crypto.randomUUID();
   await c.var.db.batch([
-    { sql: `INSERT INTO vacancies (id, employer_id, title, title_lc, description, description_lc, kind, industry_key, city_key, city_other, work_format, min_gpa, deadline, salary_min, salary_max)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-      params: [id, c.var.auth!.user.id, d.title, d.title.toLocaleLowerCase(), d.description, d.description.toLocaleLowerCase(), d.kind, d.industry, d.city, d.cityOther, d.workFormat, d.minGpa, d.deadline, d.salaryMin, d.salaryMax] },
+    { sql: `INSERT INTO vacancies (id, employer_id, title, title_lc, description, description_lc, kind, industry_key, city_key, city_other, work_format, min_gpa, deadline, salary_min, salary_max, industry_other)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      params: [id, c.var.auth!.user.id, d.title, d.title.toLocaleLowerCase(), d.description, d.description.toLocaleLowerCase(), d.kind, d.industry, d.city, d.cityOther, d.workFormat, d.minGpa, d.deadline, d.salaryMin, d.salaryMax, d.industryOther] },
     ...replaceSkillsStmts('vacancy_skills', 'vacancy_id', id, d.requiredSkills),
   ]);
   const row = await ownVacancy(c, id);
@@ -60,8 +60,8 @@ vacancies.put('/:id', requireAuth('employer'), async (c) => {
   if (!v.ok) return apiError(c, 400, v.formError ?? 'VALIDATION_FAILED', { fields: v.fields });
   const d = v.data;
   await c.var.db.batch([
-    { sql: `UPDATE vacancies SET title = $2, title_lc = $13, description = $3, description_lc = $14, kind = $4, industry_key = $5, city_key = $6, city_other = $7, work_format = $8, min_gpa = $9, deadline = $10, salary_min = $11, salary_max = $12 WHERE id = $1`,
-      params: [cur.id, d.title, d.description, d.kind, d.industry, d.city, d.cityOther, d.workFormat, d.minGpa, d.deadline, d.salaryMin, d.salaryMax, d.title.toLocaleLowerCase(), d.description.toLocaleLowerCase()] },
+    { sql: `UPDATE vacancies SET title = $2, title_lc = $13, description = $3, description_lc = $14, kind = $4, industry_key = $5, city_key = $6, city_other = $7, work_format = $8, min_gpa = $9, deadline = $10, salary_min = $11, salary_max = $12, industry_other = $15 WHERE id = $1`,
+      params: [cur.id, d.title, d.description, d.kind, d.industry, d.city, d.cityOther, d.workFormat, d.minGpa, d.deadline, d.salaryMin, d.salaryMax, d.title.toLocaleLowerCase(), d.description.toLocaleLowerCase(), d.industryOther] },
     ...replaceSkillsStmts('vacancy_skills', 'vacancy_id', cur.id, d.requiredSkills),
   ]);
   const updated = (await ownVacancy(c, cur.id))!;
@@ -72,11 +72,16 @@ vacancies.put('/:id', requireAuth('employer'), async (c) => {
 vacancies.post('/:id/publish', requireAuth('employer'), async (c) => {
   const cur = await ownVacancy(c, c.req.param('id'));
   if (!cur) return apiError(c, 404, 'NOT_FOUND');
-  if (c.var.auth!.user.status !== 'active') return apiError(c, 403, 'EMPLOYER_NOT_APPROVED');
+  if (c.var.auth!.user.status !== 'active') {
+    const r = (await c.var.db.query<{ review_status: string }>('SELECT review_status FROM employer_profiles WHERE user_id = $1', [c.var.auth!.user.id])).rows[0];
+    return apiError(c, 403, r?.review_status === 'rejected' ? 'EMPLOYER_REJECTED' : 'EMPLOYER_NOT_APPROVED');
+  }
   if (cur.status === 'published') return c.json({ vacancy: toVacancyDto(cur), matches: 0 });
   // re-validate stored data so a draft can never be published in an invalid state
   const chk = validateVacancy({
-    title: cur.title, description: cur.description, kind: cur.kind, industry: cur.industry_key, city: cur.city_key, cityOther: cur.city_other ?? undefined,
+    title: cur.title, description: cur.description, kind: cur.kind, industry: cur.industry_key,
+    // drafts saved before the "Other" text existed have none; they stay publishable (the editor asks for it on the next edit)
+    industryOther: cur.industry_other ?? (cur.industry_key === 'other' ? 'Other' : undefined), city: cur.city_key, cityOther: cur.city_other ?? undefined,
     workFormat: cur.work_format, minGpa: cur.min_gpa ?? undefined, deadline: cur.deadline ?? undefined, requiredSkills: cur.skills, salaryMin: cur.salary_min ?? undefined, salaryMax: cur.salary_max ?? undefined,
   });
   if (!chk.ok && !(Object.keys(chk.fields).length === 1 && chk.fields.deadline === 'DEADLINE_PAST')) return apiError(c, 400, 'VALIDATION_FAILED', { fields: chk.fields });

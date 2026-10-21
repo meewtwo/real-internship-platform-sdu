@@ -15,11 +15,11 @@ test.describe('phases 2-6 end to end', () => {
     // admin approves the pending employer through the UI
     const a = await adminCtx.newPage();
     await uiLogin(a, 'employer', adminEmail, 'Cm!Root2026#Safe');
-    await nav(a, 'Employer approvals').click();
+    await nav(a, 'Companies').click();
     const row = a.getByRole('listitem').filter({ hasText: emp.email });
     await expect(row.getByText('Acme Technologies LLP')).toBeVisible();
     await row.getByRole('button', { name: 'Approve' }).click();
-    await expect(a.getByText('Employer approved')).toBeVisible();
+    await expect(a.getByText('Company approved')).toBeVisible();
 
     // employer creates a vacancy (validation first), then publishes it
     const e = await empCtx.newPage();
@@ -94,6 +94,49 @@ test.describe('phases 2-6 end to end', () => {
     await expect(a.getByRole('list', { name: 'Top skills required by employers' }).getByText('Python')).toBeVisible();
     await expect(a.getByText('Application funnel')).toBeVisible();
     for (const c of [adminCtx, empCtx, stuCtx]) await c.close();
+  });
+
+  test('admin rejects a company with a reason → employer sees the reason, cannot publish; admin pages are admin-only', async ({ browser }) => {
+    const ctx = () => browser.newContext({ baseURL: process.env.E2E_BASE ?? 'http://127.0.0.1:4173', viewport: { width: 1366, height: 900 } });
+    const [adminCtx, empCtx] = [await ctx(), await ctx()];
+    const emp = await apiEmployer(empCtx.request);
+    const adminEmail = await seedAdmin();
+
+    const e = await empCtx.newPage();
+    await uiLogin(e, 'employer', emp.email);
+    await e.goto('/admin/companies');
+    await expect(e).toHaveURL(/\/dashboard$/); // not for employers
+    expect((await e.request.get('/api/admin/employers?status=pending')).status()).toBe(403);
+
+    const a = await adminCtx.newPage();
+    await uiLogin(a, 'employer', adminEmail, 'Cm!Root2026#Safe');
+    await a.goto('/approvals'); // old link still works
+    await expect(a).toHaveURL(/\/admin\/companies$/);
+    const row = a.getByRole('listitem').filter({ hasText: emp.email });
+    await row.getByRole('button', { name: 'Reject' }).click();
+    await row.getByLabel(/Reason for rejection/).fill('The IIN does not match the company name');
+    await row.getByRole('button', { name: 'Reject company' }).click();
+    await expect(a.getByText('Company rejected')).toBeVisible();
+    await a.getByRole('tab', { name: /Rejected/ }).click();
+    await expect(a.getByText('The IIN does not match the company name')).toBeVisible();
+
+    await e.goto('/vacancies/new');
+    await e.getByLabel('Title').fill('Python SQL Data Analyst Intern');
+    await e.getByLabel('Description').fill('Work with SQL and Python on real analytics dashboards together with our data team.');
+    await e.getByLabel('Type', { exact: true }).selectOption('internship');
+    await e.getByLabel('Work format').selectOption('onsite');
+    await e.getByLabel('Industry', { exact: true }).selectOption('it_software');
+    const city = e.getByRole('combobox', { name: 'City' });
+    await city.click(); await city.fill('Alm'); await e.getByRole('listbox').getByRole('option').first().click();
+    const skills = e.getByLabel('Required skills');
+    await skills.fill('SQL'); await skills.press('Enter');
+    await e.getByRole('button', { name: 'Save draft' }).click();
+    await expect(e).toHaveURL(/\/vacancies\/mine$/);
+    await expect(e.getByText('Your company registration was rejected.')).toBeVisible();
+    await expect(e.getByText('The IIN does not match the company name')).toBeVisible();
+    await e.getByRole('button', { name: 'Publish' }).first().click();
+    await expect(e.getByText(/registration was rejected, so vacancies can't be published/)).toBeVisible();
+    for (const c of [adminCtx, empCtx]) await c.close();
   });
 
   test('CV upload: analysed skills + experience, add to profile, errors for fake files, download', async ({ page }) => {

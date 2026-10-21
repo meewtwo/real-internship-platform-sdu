@@ -6,11 +6,11 @@ import type { MatchResult } from '@sdu/shared';
 import { MatchBadge, SkillChips } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { cityLabel, fmtDate } from '../../lib/format';
+import { cityLabel, fmtDate, optionLabel } from '../../lib/format';
 import { useSalary } from '../../lib/useSalary';
 
 export interface VacancyDto {
-  id: string; title: string; description: string; kind: string; industry: string; city: string; cityOther: string | null; workFormat: string; minGpa: string | null;
+  id: string; title: string; description: string; kind: string; industry: string; industryOther?: string | null; city: string; cityOther: string | null; workFormat: string; minGpa: string | null;
   deadline: string | null; status: string; publishedAt: string | null; requiredSkills: string[]; company: { id: string; name: string; website: string | null }; applicants?: number;
   salaryMin: number | null; salaryMax: number | null; match?: MatchResult | null; applied?: boolean; favorite?: boolean;
 }
@@ -57,7 +57,7 @@ export function VacancyCard({ v, index = 0, onFavorite }: { v: VacancyDto; index
       <p className="mt-2.5 flex flex-wrap gap-1.5 text-[12px] font-semibold">
         <span className="rounded-md bg-orange-50 px-2 py-0.5 text-orange-dark">{t(`options:kinds.${v.kind}`)}</span>
         <span className="rounded-md bg-brand-50 px-2 py-0.5 text-navy">{t(`options:formats.${v.workFormat}`)}</span>
-        <span className="rounded-md bg-brand-50 px-2 py-0.5 text-navy">{t(`options:industries.${v.industry}`)}</span>
+        <span className="rounded-md bg-brand-50 px-2 py-0.5 text-navy">{optionLabel(t, 'industries', v.industry, v.industryOther)}</span>
         {v.minGpa && <span className="rounded-md bg-brand-50 px-2 py-0.5 text-navy">{t('app:minGpa', { gpa: v.minGpa })}</span>}
         {v.applied && <span className="rounded-md bg-lime px-2 py-0.5 text-navy">{t('app:search.applied')}</span>}
       </p>

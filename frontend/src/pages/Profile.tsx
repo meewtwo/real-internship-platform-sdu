@@ -3,7 +3,7 @@ import { AtSign, BookOpen, Briefcase, Building2, Calendar, Factory, Fingerprint,
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CITY_KEYS, COMPANY_SIZE_KEYS, INDUSTRY_KEYS, INTEREST_KEYS, MAJOR_KEYS, RELOCATION_KEYS, YEAR_KEYS, formatPhoneMask, sanitizeGpaInput, validateEmployerProfile, validateStudentProfile } from '@sdu/shared';
-import { CityField, MonthYearField, SelectField } from '../components/Controls';
+import { CityField, MonthYearField, SelectField, SelectWithOtherField } from '../components/Controls';
 import { TextField } from '../components/Field';
 import { SegmentedField } from '../components/SegmentedField';
 import { TagInput } from '../components/TagInput';
@@ -38,7 +38,7 @@ function SaveBar({ dirty, valid, busy, error }: { dirty: boolean; valid: boolean
 }
 
 // ───────────────────────── Student ─────────────────────────
-const S_DEFAULTS = { name: '', surname: '', phone: '', city: '', cityOther: '', major: '', yearOfStudy: '', gpa: '', graduation: '', interestArea: '', relocation: '', skills: [] as string[], interests: [] as string[] };
+const S_DEFAULTS = { name: '', surname: '', phone: '', city: '', cityOther: '', major: '', yearOfStudy: '', gpa: '', graduation: '', interestArea: '', interestOther: '', relocation: '', skills: [] as string[], interests: [] as string[] };
 type SV = typeof S_DEFAULTS;
 
 function StudentProfile() {
@@ -58,7 +58,7 @@ function StudentProfile() {
     const next: SV = {
       name: String(p.name ?? ''), surname: String(p.surname ?? ''), phone: formatPhoneMask(String(p.phone ?? '')), city: String(p.city ?? ''), cityOther: String(p.cityOther ?? ''),
       major: String(p.major ?? ''), yearOfStudy: String(p.yearOfStudy ?? ''), gpa: String(p.gpa ?? ''), graduation: String(p.graduation ?? ''),
-      interestArea: String(p.interestArea ?? ''), relocation: String(p.relocation ?? ''), skills: (p.skills as string[]) ?? [], interests: (p.interests as string[]) ?? [],
+      interestArea: String(p.interestArea ?? ''), interestOther: String(p.interestOther ?? ''), relocation: String(p.relocation ?? ''), skills: (p.skills as string[]) ?? [], interests: (p.interests as string[]) ?? [],
     };
     for (const [k, val] of Object.entries(next)) set(k as keyof SV & string, val as never);
     setBase(JSON.stringify(next));
@@ -100,7 +100,10 @@ function StudentProfile() {
         <SelectField name="yearOfStudy" label={t('auth:fields.year')} value={v.yearOfStudy} icon={<GraduationCap size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'years', YEAR_KEYS)} onChange={(x) => { set('yearOfStudy', x); touch('graduation'); }} onBlur={() => touch('yearOfStudy')} error={shown('yearOfStudy')} valid={ok('yearOfStudy')} />
         <TextField name="gpa" label={t('auth:fields.gpa')} value={v.gpa} icon={<TrendingUp size={16} />} inputMode="decimal" maxLength={4} onChange={(x) => set('gpa', sanitizeGpaInput(x))} onBlur={() => touch('gpa')} error={shown('gpa')} valid={ok('gpa')} />
         <MonthYearField label={t('auth:fields.graduation')} value={v.graduation} icon={<Calendar size={16} />} onChange={(x) => { set('graduation', x); touch('graduation'); }} onBlur={() => touch('graduation')} error={shown('graduation')} />
-        <SelectField name="interestArea" label={t('auth:fields.interestArea')} value={v.interestArea} icon={<Target size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'interests', INTEREST_KEYS)} onChange={(x) => set('interestArea', x)} onBlur={() => touch('interestArea')} error={shown('interestArea')} valid={ok('interestArea')} />
+        <SelectWithOtherField name="interestArea" otherName="interestOther" label={t('auth:fields.interestArea')} otherLabel={t('auth:fields.interestOther')} otherPlaceholder={t('auth:placeholders.interestOther')}
+          value={v.interestArea} other={v.interestOther} icon={<Target size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'interests', INTEREST_KEYS)}
+          onChange={(x, o) => { set('interestArea', x); set('interestOther', o); }} onBlur={() => touch('interestArea')} onBlurOther={() => touch('interestOther')}
+          error={shown('interestArea')} errorOther={shown('interestOther')} valid={ok('interestArea')} validOther={ok('interestOther')} />
         <SegmentedField name="relocation" label={t('auth:fields.relocation')} value={v.relocation as never} options={opt(t, 'relocation', RELOCATION_KEYS) as never} onChange={(x) => { set('relocation', x); touch('relocation'); }} error={shown('relocation')} />
         <div className="sm:col-span-2 lg:col-span-3">
           <TagInput label={t('profile:skills.label')} value={v.skills} onChange={(x) => { set('skills', x); touch('skills'); }} max={30} suggest placeholder={t('profile:skills.placeholder')} hint={t('profile:skills.hint')} error={shown('skills')} />
@@ -115,7 +118,9 @@ function StudentProfile() {
 }
 
 // ───────────────────────── Employer ─────────────────────────
-const E_DEFAULTS = { companyName: '', industry: '', size: '', city: '', cityOther: '', contactName: '', contactSurname: '', position: '', phone: '', website: '', description: '' };
+interface Review { status: 'pending' | 'approved' | 'rejected'; reason: string | null; reviewedAt: string | null }
+const STATUS_CLS = { active: 'bg-lime text-navy', pending: 'bg-amber-100 text-amber-900', rejected: 'bg-danger/10 text-danger-text' } as const;
+const E_DEFAULTS = { companyName: '', industry: '', industryOther: '', size: '', city: '', cityOther: '', contactName: '', contactSurname: '', position: '', phone: '', website: '', description: '' };
 type EV = typeof E_DEFAULTS;
 
 function EmployerProfile() {
@@ -125,6 +130,7 @@ function EmployerProfile() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [bin, setBin] = useState('');
+  const [review, setReview] = useState<Review | null>(null);
   const [base, setBase] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -134,7 +140,7 @@ function EmployerProfile() {
 
   const apply = useCallback((p: Record<string, unknown>) => {
     const next: EV = {
-      companyName: String(p.companyName ?? ''), industry: String(p.industry ?? ''), size: String(p.size ?? ''), city: String(p.city ?? ''), cityOther: String(p.cityOther ?? ''),
+      companyName: String(p.companyName ?? ''), industry: String(p.industry ?? ''), industryOther: String(p.industryOther ?? ''), size: String(p.size ?? ''), city: String(p.city ?? ''), cityOther: String(p.cityOther ?? ''),
       contactName: String(p.contactName ?? ''), contactSurname: String(p.contactSurname ?? ''), position: String(p.position ?? ''), phone: formatPhoneMask(String(p.phone ?? '')),
       website: String(p.website ?? ''), description: String(p.description ?? ''),
     };
@@ -144,7 +150,7 @@ function EmployerProfile() {
   }, [set]);
 
   useEffect(() => {
-    api<{ profile: Record<string, unknown> }>('GET', '/api/profile').then((r) => { apply(r.profile); setLoaded(true); }).catch((e) => setLoadError(apiErrText(t, e)));
+    api<{ profile: Record<string, unknown>; review?: Review | null }>('GET', '/api/profile').then((r) => { apply(r.profile); setReview(r.review ?? null); setLoaded(true); }).catch((e) => setLoadError(apiErrText(t, e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -162,19 +168,23 @@ function EmployerProfile() {
     } finally { setBusy(false); }
   };
   const ok = (n: string) => !form.errors[n];
+  const companyStatus = user?.status === 'active' ? 'active' : review?.status === 'rejected' ? 'rejected' : 'pending';
   if (loadError) return <p role="alert" className="rounded-2xl bg-white p-4 font-semibold text-danger-text">{loadError}</p>;
   if (!loaded) return <p className="p-4 text-muted">{t('loading')}</p>;
   return (
     <form onSubmit={(e) => void save(e)} noValidate className="rounded-3xl bg-white p-4 shadow-xl ring-1 ring-brand/10 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div><h1 className="text-2xl font-extrabold text-navy">{t('profile:employer.title')}</h1><p className="mb-4 text-sm text-muted">{t('profile:employer.subtitle')}</p></div>
-        <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${user?.status === 'pending' ? 'bg-amber-100 text-amber-900' : 'bg-lime text-navy'}`}>{t('profile:status.label')}: {t(user?.status === 'pending' ? 'profile:status.pending' : 'profile:status.active')}</span>
+        <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${STATUS_CLS[companyStatus]}`}>{t('profile:status.label')}: {t(`profile:status.${companyStatus}`)}</span>
       </div>
       <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
         <TextField name="bin" label={t('profile:readonly.bin')} value={bin} icon={<Fingerprint size={16} />} readOnly onChange={() => undefined} errLines={1} />
         <TextField name="email" label={t('profile:readonly.email')} value={user?.email ?? ''} icon={<AtSign size={16} />} readOnly onChange={() => undefined} errLines={1} className="lg:col-span-2" />
         <TextField name="companyName" label={t('auth:fields.companyName')} value={v.companyName} icon={<Building2 size={16} />} maxLength={100} autoComplete="organization" onChange={(x) => set('companyName', x)} onBlur={() => touch('companyName')} error={shown('companyName')} valid={ok('companyName')} className="lg:col-span-2" />
-        <SelectField name="industry" label={t('auth:fields.industry')} value={v.industry} icon={<Factory size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'industries', INDUSTRY_KEYS)} onChange={(x) => set('industry', x)} onBlur={() => touch('industry')} error={shown('industry')} valid={ok('industry')} />
+        <SelectWithOtherField name="industry" otherName="industryOther" label={t('auth:fields.industry')} otherLabel={t('auth:fields.industryOther')} otherPlaceholder={t('auth:placeholders.industryOther')}
+          value={v.industry} other={v.industryOther} icon={<Factory size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'industries', INDUSTRY_KEYS)}
+          onChange={(x, o) => { set('industry', x); set('industryOther', o); }} onBlur={() => touch('industry')} onBlurOther={() => touch('industryOther')}
+          error={shown('industry')} errorOther={shown('industryOther')} valid={ok('industry')} validOther={ok('industryOther')} />
         <SelectField name="size" label={t('auth:fields.size')} value={v.size} icon={<Users size={16} />} placeholder={t('auth:placeholders.select')} options={opt(t, 'sizes', COMPANY_SIZE_KEYS)} onChange={(x) => set('size', x)} onBlur={() => touch('size')} error={shown('size')} valid={ok('size')} />
         <CityField label={t('auth:fields.city')} city={v.city} cityOther={v.cityOther} keys={CITY_KEYS} icon={<MapPin size={16} />} onChange={(c, o) => { set('city', c); set('cityOther', o); }} onBlur={() => touch('city')} error={shown('city')} errorOther={shown('cityOther')} />
         <TextField name="contactName" label={t('auth:fields.contactName')} value={v.contactName} icon={<User size={16} />} maxLength={50} onChange={(x) => set('contactName', x)} onBlur={() => touch('contactName')} error={shown('contactName')} valid={ok('contactName')} />

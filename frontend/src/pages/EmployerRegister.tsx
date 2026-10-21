@@ -2,7 +2,7 @@ import { AtSign, Briefcase, Building2, Fingerprint, Globe, Lock, MapPin, Phone, 
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CITY_KEYS, COMPANY_SIZE_KEYS, INDUSTRY_KEYS, formatPhoneMask, validateEmployerRegistration } from '@sdu/shared';
-import { CityField, PasswordChecklist, PasswordField, SelectField, TermsCheckbox, TermsModal } from '../components/Controls';
+import { CityField, PasswordChecklist, PasswordField, SelectField, SelectWithOtherField, TermsCheckbox, TermsModal } from '../components/Controls';
 import { FieldShell, TextField } from '../components/Field';
 import { RegisterLayout, type Cell, type Step } from '../components/RegisterLayout';
 import { api, ApiError } from '../lib/api';
@@ -11,7 +11,7 @@ import { useAppForm } from '../lib/form';
 import type { PendingVerify } from './VerifyCode';
 
 const DEFAULTS = {
-  companyName: '', bin: '', industry: '', size: '', city: '', cityOther: '', contactName: '', contactSurname: '', position: '', email: '', phone: '',
+  companyName: '', bin: '', industry: '', industryOther: '', size: '', city: '', cityOther: '', contactName: '', contactSurname: '', position: '', email: '', phone: '',
   website: '', description: '', password: '', confirmPassword: '', acceptTerms: false,
 };
 type V = typeof DEFAULTS;
@@ -63,7 +63,8 @@ export function EmployerRegister({ onRegistered }: { onRegistered: (p: PendingVe
   const cells: Cell[] = [
     { name: 'companyName', span: 2, render: (l) => <TextField name="companyName" label={t('auth:fields.companyName')} value={v.companyName} errLines={l} icon={<Building2 size={16} />} maxLength={100} autoComplete="organization" placeholder={t('auth:placeholders.companyName')} onChange={(x) => set('companyName', x)} onBlur={blur('companyName')} error={shown('companyName')} valid={ok('companyName')} /> },
     { name: 'bin', span: 1, pair: true, render: (l) => <TextField name="bin" label={t('auth:fields.bin')} value={v.bin} errLines={l} icon={<Fingerprint size={16} />} inputMode="numeric" maxLength={12} placeholder={t('auth:placeholders.bin')} onChange={(x) => set('bin', x.replace(/[^0-9]/g, '').slice(0, 12))} onBlur={blur('bin')} error={shown('bin')} valid={ok('bin')} /> },
-    { name: 'industry', span: 1, half: true, render: (l) => <SelectField name="industry" label={t('auth:fields.industry')} value={v.industry} errLines={l} icon={<Factory size={16} />} placeholder={t('auth:placeholders.select')} options={opt('industries', INDUSTRY_KEYS)} onChange={(x) => set('industry', x)} onBlur={blur('industry')} error={shown('industry')} valid={ok('industry')} /> },
+    { name: 'industry', span: 1, half: true, render: (l) => <SelectWithOtherField name="industry" otherName="industryOther" label={t('auth:fields.industry')} otherLabel={t('auth:fields.industryOther')} otherPlaceholder={t('auth:placeholders.industryOther')} value={v.industry} other={v.industryOther} errLines={l} icon={<Factory size={16} />} placeholder={t('auth:placeholders.select')} options={opt('industries', INDUSTRY_KEYS)}
+      onChange={(x, o) => { set('industry', x); set('industryOther', o); }} onBlur={blur('industry')} onBlurOther={blur('industryOther')} error={shown('industry')} errorOther={shown('industryOther')} valid={ok('industry')} validOther={ok('industryOther')} /> },
     { name: 'size', span: 1, half: true, render: (l) => <SelectField name="size" label={t('auth:fields.size')} value={v.size} errLines={l} icon={<Users size={16} />} placeholder={t('auth:placeholders.select')} options={opt('sizes', COMPANY_SIZE_KEYS)} onChange={(x) => set('size', x)} onBlur={blur('size')} error={shown('size')} valid={ok('size')} /> },
     { name: 'city', span: 1, pair: true, render: (l) => <CityField label={t('auth:fields.city')} city={v.city} cityOther={v.cityOther} keys={CITY_KEYS} errLines={l} icon={<MapPin size={16} />} onChange={(c, o) => { set('city', c); set('cityOther', o); }} onBlur={blur('city')} error={shown('city')} errorOther={shown('cityOther')} /> },
     { name: 'contactName', span: 1, half: true, render: (l) => <TextField name="contactName" label={t('auth:fields.contactName')} value={v.contactName} errLines={l} icon={<User size={16} />} maxLength={50} autoComplete="given-name" placeholder={t('auth:placeholders.name')} onChange={(x) => set('contactName', x)} onBlur={blur('contactName')} error={shown('contactName')} valid={ok('contactName')} /> },
@@ -77,7 +78,7 @@ export function EmployerRegister({ onRegistered }: { onRegistered: (p: PendingVe
     { name: 'confirmPassword', span: 1, pair: true, render: (l) => <PasswordField name="confirmPassword" label={t('auth:fields.confirmPassword')} value={v.confirmPassword} errLines={l} icon={<Lock size={16} />} autoComplete="new-password" onChange={(x) => set('confirmPassword', x)} onBlur={blur('confirmPassword')} error={shown('confirmPassword')} valid={ok('confirmPassword') && v.password !== ''} /> },
   ];
   const steps: Step[] = [
-    { title: t('auth:register.steps.e1'), fields: ['companyName', 'bin', 'city', 'industry', 'size'] },
+    { title: t('auth:register.steps.e1'), fields: ['companyName', 'bin', 'city', 'industry', 'industryOther', 'size'] },
     { title: t('auth:register.steps.e2'), fields: ['contactName', 'contactSurname', 'position', 'phone', 'email'] },
     { title: t('auth:register.steps.e3'), fields: ['website', 'description', 'password', 'confirmPassword', 'acceptTerms'] },
   ];

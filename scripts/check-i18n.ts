@@ -11,7 +11,7 @@ const LOCALES = fileURLToPath(new URL('../frontend/src/locales/', import.meta.ur
 const LANGS = ['en', 'ru', 'kk'] as const;
 const MAX_FIELD_ERROR_LEN = 64;
 // Banner-level messages (not rendered under a narrow field) may be longer.
-const BANNER_CODES = new Set(['ACCOUNT_LOCKED', 'CSRF_INVALID', 'RESEND_LIMIT', 'RESEND_COOLDOWN', 'CODE_TOO_MANY_ATTEMPTS', 'RATE_LIMITED', 'UNKNOWN_FIELDS']);
+const BANNER_CODES = new Set(['EMPLOYER_NOT_APPROVED', 'EMPLOYER_REJECTED', 'ACCOUNT_LOCKED', 'CSRF_INVALID', 'RESEND_LIMIT', 'RESEND_COOLDOWN', 'CODE_TOO_MANY_ATTEMPTS', 'RATE_LIMITED', 'UNKNOWN_FIELDS']);
 
 type Tree = { [k: string]: string | Tree };
 function flatten(t: Tree, prefix = ''): Record<string, string> {

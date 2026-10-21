@@ -1,7 +1,7 @@
-import { Check, ChevronDown, ChevronLeft, Eye, EyeOff, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, Eye, EyeOff, PencilLine, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { passwordChecks, passwordStrength, type PasswordContext, type PasswordRule } from '@sdu/shared';
+import { OTHER_TEXT_MAX, passwordChecks, passwordStrength, type PasswordContext, type PasswordRule } from '@sdu/shared';
 import { errText } from '../lib/errors';
 import { FieldShell, TextField } from './Field';
 
@@ -40,6 +40,29 @@ export function SelectField({ name, label, value, onChange, onBlur, options, err
         </select>
       )}
     </FieldShell>
+  );
+}
+
+// ───────────────────────── Dropdown whose "Other" option asks for the value in a text field below ─────────────────────────
+/**
+ * The text field is shown (and required) only while "other" is selected; picking another option clears it, so the stored value is
+ * always either a list key or the student's/company's own words. Validation (2–100 chars, trimmed) lives in the shared validators.
+ */
+export function SelectWithOtherField({ name, otherName, label, otherLabel, otherPlaceholder, value, other, onChange, onBlur, onBlurOther, options, error, errorOther, valid, validOther, icon, placeholder, errLines, className }: {
+  name: string; otherName: string; label: string; otherLabel: string; otherPlaceholder: string; value: string; other: string;
+  onChange: (value: string, other: string) => void; onBlur?: () => void; onBlurOther?: () => void;
+  options: { value: string; label: string }[]; error?: string; errorOther?: string; valid?: boolean; validOther?: boolean; icon?: ReactNode; placeholder: string; errLines?: 1 | 2 | 'r'; className?: string;
+}) {
+  const isOther = value === 'other';
+  return (
+    <div className={`min-w-0 ${className ?? ''}`}>
+      <SelectField name={name} label={label} value={value} icon={icon} placeholder={placeholder} options={options} errLines={isOther ? 1 : errLines}
+        onChange={(v) => onChange(v, v === 'other' ? other : '')} onBlur={onBlur} error={error} valid={valid} />
+      {isOther && (
+        <TextField name={otherName} label={otherLabel} value={other} icon={<PencilLine size={16} />} maxLength={OTHER_TEXT_MAX} placeholder={otherPlaceholder} errLines={1}
+          onChange={(x) => onChange('other', x.replace(/\s{2,}/g, ' ').trimStart())} onBlur={onBlurOther} error={errorOther} valid={validOther} />
+      )}
+    </div>
   );
 }
 

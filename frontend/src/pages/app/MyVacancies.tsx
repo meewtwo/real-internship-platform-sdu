@@ -1,10 +1,10 @@
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { CompanyStatusBanner } from '../../components/CompanyStatusBanner';
 import { Card, LoadState, PageHeader, StatusBadge, btnDanger, btnGhost, btnPrimary } from '../../components/ui';
 import { useToast } from '../../components/Toast';
 import { api } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
 import { apiErrText } from '../../lib/errors';
 import { fmtDate } from '../../lib/format';
 import { usePageTitle } from '../../lib/usePageTitle';
@@ -13,7 +13,6 @@ import type { VacancyDto } from './VacancyCard';
 
 export function MyVacancies() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const toast = useToast();
   usePageTitle('nav.myVacancies');
   const { data, error, loading, reload } = useApi<{ vacancies: VacancyDto[] }>('/api/vacancies/mine');
@@ -29,7 +28,7 @@ export function MyVacancies() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title={t('app:mine.title')} actions={<Link to="/vacancies/new" className={btnPrimary}><Plus size={16} aria-hidden />{t('app:mine.new')}</Link>} />
-      {user?.status === 'pending' && <p role="status" className="mb-3 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-300">{t('app:mine.pendingWarn')}</p>}
+      <CompanyStatusBanner pendingKey="app:mine.pendingWarn" className="mb-3" />
       <LoadState loading={loading && !data} error={error} empty={!!data && data.vacancies.length === 0} emptyText={t('app:mine.empty')} />
       <ul className="space-y-3">
         {data?.vacancies.map((v) => (

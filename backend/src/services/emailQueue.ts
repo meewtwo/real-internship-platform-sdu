@@ -6,7 +6,7 @@ import { iso } from '../lib/sql';
 import { mailLinks } from './emailLinks';
 import { instantEmail } from './emailText';
 
-export const INSTANT_KINDS = ['status_changed', 'invitation', 'new_application', 'employer_approved', 'new_message', 'interview_update'] as const;
+export const INSTANT_KINDS = ['status_changed', 'invitation', 'new_application', 'employer_approved', 'employer_rejected', 'new_message', 'interview_update'] as const;
 const MAX_ATTEMPTS = 5;
 const MAX_AGE_MS = 2 * 86400_000;
 const CLAIM_TTL_MS = 2 * 60_000;

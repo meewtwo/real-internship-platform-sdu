@@ -202,6 +202,23 @@ export function validateCityOther(v: unknown): Result<string> {
   return ok(s);
 }
 
+/** Free text that replaces a dropdown's "Other" (custom interest / industry): 2–100 visible characters, no control/invisible characters. */
+export const OTHER_TEXT_MAX = 100;
+export function validateOtherText(v: unknown): Result<string> {
+  if (v === undefined || v === null) return fail('REQUIRED');
+  const s = clean(v);
+  if (s === null) return fail('OTHER_TEXT_INVALID');
+  if (isBlank(s)) return fail('REQUIRED');
+  if (s.length > 4 * OTHER_TEXT_MAX || s.replace(INVISIBLE, '') !== s) return fail('OTHER_TEXT_INVALID');
+  const len = cpLen(s);
+  if (len < 2 || len > OTHER_TEXT_MAX || /\s{2}/.test(s)) return fail('OTHER_TEXT_INVALID');
+  return ok(s);
+}
+/** `other` is only validated (and kept) when the dropdown value is "other"; otherwise it is dropped. */
+export function validateWithOther(key: string | undefined, other: unknown): Result<string | null> {
+  return key === 'other' ? validateOtherText(other) : ok(null);
+}
+
 export interface CityValue { city: CityKey; cityOther: string | null }
 export function validateCity(city: unknown, cityOther: unknown): { city: Result<CityKey>; cityOther: Result<string | null> } {
   const c = validateCityKey(city);

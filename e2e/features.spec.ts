@@ -61,34 +61,43 @@ test.describe('hh-style features', () => {
     for (const c of [ec, sc]) await c.close();
   });
 
-  test('résumé from SDU portal: demo import, pasted transcript, skills → profile, print layout, edit text', async ({ page }) => {
+  test('Résumé section: opens the Builder, only Builder and My CV sub-tabs, old /resume link redirects', async ({ page }) => {
     const stu = await apiStudent(page.request, []);
     await uiLogin(page, 'student', stu.id);
-    await expect(page.getByRole('link', { name: 'Build your résumé from SDU courses' })).toBeVisible(); // dashboard checklist step
+    await expect(page.getByRole('link', { name: 'Create a résumé in the Builder' })).toBeVisible(); // dashboard checklist step
     await nav(page, 'Résumé').click();
-    await expect(page.getByRole('button', { name: 'Build résumé' })).toBeDisabled();
-    await page.getByLabel('Paste transcript text').fill('nothing useful here');
-    await page.getByRole('button', { name: 'Build résumé' }).click();
-    await expect(page.getByText('No courses recognised in this text')).toBeVisible();
-    await page.getByLabel('Paste transcript text').fill('2025 Fall  CSC 210  Database Systems  6  A\n2025 Fall  CSC 230  Web Programming  6  A-\n2026 Spring CSC 310  Machine Learning  6  B+');
-    await page.getByRole('button', { name: 'Build résumé' }).click();
-    await expect(page.getByText('Imported from transcript')).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'Database Systems' })).toBeVisible();
-    await expect(page.getByText(/GPA 3\.65 · 18 credits/)).toBeVisible();
-    await page.getByRole('button', { name: 'Add skills to my profile' }).click();
-    await expect(page.getByText(/Added \d+ skills to your profile/)).toBeVisible();
-    await page.getByRole('button', { name: 'Edit text' }).click();
-    await page.getByLabel('About me').fill('Hello <script>window.__xss=1</script> recruiters');
-    await page.getByRole('button', { name: 'Save changes' }).click().catch(async () => { await page.getByRole('button', { name: 'Save' }).click(); });
-    await expect(page.getByText('Hello <script>window.__xss=1</script> recruiters')).toBeVisible();
-    expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
-    await page.emulateMedia({ media: 'print' });
-    await expect(page.getByRole('navigation')).toBeHidden();
-    await page.emulateMedia({ media: 'screen' });
-    await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: 'Build your résumé from SDU courses' }).locator('span.line-through')).toBeVisible(); // step is ticked off
+    await expect(page).toHaveURL(/\/resume\/builder$/);
+    await expect(page.getByRole('heading', { name: 'Résumé builder' })).toBeVisible();
+    const tabs = page.getByRole('navigation', { name: 'Sections' }).getByRole('link');
+    await expect(tabs).toHaveText(['Builder', 'My CV']);
+    await expect(page.getByText('Import from SDU portal')).toHaveCount(0);
+    await page.goto('/resume');
+    await expect(page).toHaveURL(/\/resume\/builder$/);
+    await page.getByRole('link', { name: 'My CV' }).click();
+    await expect(page).toHaveURL(/\/cv$/);
+  });
+
+  test('student profile: "Other" interest asks for the student\'s own words and keeps them', async ({ page }) => {
+    const stu = await apiStudent(page.request, ['Python']);
+    await uiLogin(page, 'student', stu.id);
     await page.goto('/profile');
-    await expect(page.getByText('SQL', { exact: true })).toBeVisible();
+    const area = page.getByLabel('Internship interest', { exact: true });
+    await expect(page.getByLabel('Your interest')).toHaveCount(0);
+    await area.selectOption('other');
+    const own = page.getByLabel('Your interest');
+    await expect(own).toHaveAttribute('placeholder', 'Please specify your interest');
+    const save = page.getByRole('button', { name: 'Save changes' });
+    await expect(save).toBeDisabled(); // required while "Other" is selected
+    await own.fill('Game design');
+    await save.click();
+    await expect(page.getByText('Changes saved')).toBeVisible();
+    await page.reload();
+    await expect(area).toHaveValue('other');
+    await expect(page.getByLabel('Your interest')).toHaveValue('Game design');
+    await area.selectOption('data_ai'); // switching away hides and clears it
+    await expect(page.getByLabel('Your interest')).toHaveCount(0);
+    await area.selectOption('other');
+    await expect(page.getByLabel('Your interest')).toHaveValue('');
   });
 
   test('animations respect prefers-reduced-motion', async ({ browser }) => {

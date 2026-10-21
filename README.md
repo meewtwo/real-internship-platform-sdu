@@ -33,7 +33,7 @@ npm run dev                                              # API :8787 + web http:
 
 | Role | Sign in with | Password | Status |
 |---|---|---|---|
-| Admin | **Employer tab** → `admin@careermatch.kz` | `Cm!Root2026#Safe` | active |
+| Admin | **Employer tab** → `admin@careermatch.kz` | `ADMIN_PASSWORD` from `backend/.env` (default `Cm!Root2026#Safe` if unset) | active |
 | Employer | `hr@kaspi-demo.kz` | `Demo!Pass2026a` | active |
 | Employer | `talent@epam-demo.kz` | `Demo!Pass2026a` | active |
 | Employer | `pending@startup-demo.kz` | `Demo!Pass2026a` | **pending** (awaiting admin) |
@@ -42,8 +42,11 @@ npm run dev                                              # API :8787 + web http:
 | Student | ID `230107003` | `Demo!Pass2026a` | active |
 
 The admin exists **only** through the seed script — registration cannot create one (extra/`role` fields are rejected).
-Approve a pending employer in the UI: sign in as admin on the **Employer** tab → **Employer approvals** (analytics are under **Analytics**).
-The same actions exist in the API (`POST /api/admin/employers/<user-id>/approve`, `GET /api/admin/employers?status=pending`).
+Review companies in the UI: sign in as admin on the **Employer** tab → **Companies** (`/admin/companies`, tabs Pending / Approved / Rejected; analytics are under **Analytics**).
+**Approve** activates the account, which unlocks publishing (existing drafts stay drafts). **Reject** takes an optional reason (≤ 500 chars): the employer can still sign in,
+sees the reason on *My vacancies* / the dashboard, gets an in-app + e-mail notification, and cannot publish (`EMPLOYER_REJECTED`) until an admin approves it from the Rejected tab.
+The same actions exist in the API (`GET /api/admin/employers?status=pending|approved|rejected`, `POST /api/admin/employers/<user-id>/approve`, `POST …/reject` with optional `{ "reason": "…" }`).
+The company's review state lives in `employer_profiles.review_status` (+ `rejection_reason`, `reviewed_by`, `reviewed_at`); the employer reads it from `GET /api/profile` → `review`.
 
 ## Tests
 
@@ -137,7 +140,7 @@ e2e/         Playwright specs        scripts/   i18n check, VALIDATION.md genera
 ## Brand assets and the SDU portal
 
 * Logo/emblem (vector `safari-pinned-tab.svg`), the 30th-anniversary mark and the graduate / campus photos in `frontend/public/brand/` are taken from **sdu.edu.kz** (the university's own site and admission banners). They are SDU's trademarks/photos — fine for this university project; ask SDU's PR office before public use. Photos of staff were deliberately not used.
-* **Portal import is not a live connection.** SDU has no public portal API/SSO, and we never ask for students' portal passwords. Instead the student pastes the transcript from the portal (or uploads its PDF/TXT) and the résumé is built from the passed courses (`shared/src/portal.ts`: line parser, credit-weighted GPA, course → skill rules). A *demo transcript* (per major) exists for presentations and is labelled "Demo data". If SDU IT gives you an OAuth/API, only `routes/resume.ts → build()` needs a new data source.
+* **Portal import is not a live connection.** (The student-facing transcript tab was removed — the Résumé section opens the Builder; the `/api/resume` endpoints and the Builder's "SDU portal résumé" source still exist.) SDU has no public portal API/SSO, and we never ask for students' portal passwords. Instead the student pastes the transcript from the portal (or uploads its PDF/TXT) and the résumé is built from the passed courses (`shared/src/portal.ts`: line parser, credit-weighted GPA, course → skill rules). A *demo transcript* (per major) exists for presentations and is labelled "Demo data". If SDU IT gives you an OAuth/API, only `routes/resume.ts → build()` needs a new data source.
 
 ## How matching works (honest description)
 
@@ -164,7 +167,7 @@ Publishing a vacancy computes matches for all active students (capped at 5 000),
    `[max(1,(R−1)·12), (R+1)·12]` months where R = remaining years (4th-year → at most 24 months; first-year → 36–60). Adjust `graduationWindow()` if SDU's rules differ.
 6. Names are **letters only** exactly as specified (no hyphen/space/apostrophe), one script per name. Compound names ("Anna-Maria") are therefore rejected — easy to relax in `validatePersonName`.
 7. Password special-symbol set = any printable ASCII non-alphanumeric; passwords are Latin-only ASCII. "Common password" = top-1000 of SecLists plus suffix-stripping/leet normalisation.
-8. Company BIN/IIN and e-mail are read-only after registration (identity data). BIN's checksum digit is not verified.
+8. Company IIN (stored as `bin`) and e-mail are read-only after registration (identity data). The checksum digit is not verified.
 9. Admin signs in on the **Employer** tab (same e-mail login); approvals and analytics are in the app (Phase 6). The demo seed also creates demo students/employers — seed production with care.
 10. `ENVIRONMENT=test` exposes `GET /api/__test/outbox` (verification codes for e2e). It returns 404 in every other environment.
 

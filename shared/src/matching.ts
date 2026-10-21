@@ -9,12 +9,14 @@ import { cosineQ, semanticScore, type QVec } from './embedding';
 
 export interface StudentSignal {
   skills: string[]; cvSkills: string[]; interests: string[]; cvText: string; majorKey: string; interestArea: InterestKey;
+  /** The student's own words when interestArea is 'other' (adds to text similarity; the fit sub-score stays neutral). */
+  interestOther?: string | null;
   city: CityKey; cityOther: string | null; relocation: RelocationKey; gpa: number; experienceYears: number;
   /** Optional quantised text embedding (semantic matching). Absent → lexical similarity. */
   vec?: QVec | null;
 }
 export interface VacancySignal {
-  title: string; description: string; requiredSkills: string[]; industry: IndustryKey; city: CityKey; cityOther: string | null;
+  title: string; description: string; requiredSkills: string[]; industry: IndustryKey; industryOther?: string | null; city: CityKey; cityOther: string | null;
   workFormat: WorkFormat; minGpa: number | null;
   vec?: QVec | null;
 }
@@ -101,8 +103,8 @@ export function matchScore(s: StudentSignal, v: VacancySignal): MatchResult {
   }
   const credit = matchedSkills.length + partialSkills.reduce((a, p) => a + p.credit, 0);
   const skill = req.length ? Math.min(1, credit / req.length) : 0.5;
-  const studentWords = tokens([...s.skills, ...s.cvSkills, ...s.interests, s.majorKey.replace(/_/g, ' '), s.cvText].join(' '));
-  const vacancyWords = tokens([v.title, v.title, v.requiredSkills.join(' '), v.description].join(' '));
+  const studentWords = tokens([...s.skills, ...s.cvSkills, ...s.interests, s.interestOther ?? '', s.majorKey.replace(/_/g, ' '), s.cvText].join(' '));
+  const vacancyWords = tokens([v.title, v.title, v.requiredSkills.join(' '), v.industryOther ?? '', v.description].join(' '));
   const semantic = !!(s.vec && v.vec && s.vec.length === v.vec.length && s.vec.length > 0);
   const text = semantic ? semanticScore(cosineQ(s.vec, v.vec)) : textSimilarity(studentWords, vacancyWords);
   const fit = fitScore(s, v);

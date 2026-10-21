@@ -99,9 +99,9 @@ auth.post('/register/student', async (c) => {
     const id = crypto.randomUUID();
     await c.var.db.batch([
       { sql: `INSERT INTO users (id, role, student_id, email, phone, password_hash, status, preferred_language) VALUES ($1, 'student', $2, $3, $4, $5, 'unverified', $6)`, params: [id, d.studentId, d.email, d.phone, hash, d.language] },
-      { sql: `INSERT INTO student_profiles (user_id, name, surname, city_key, city_other, major_key, year_of_study, gpa, graduation_date, interest_area, relocation)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        params: [id, d.name, d.surname, d.city, d.cityOther, d.major, d.yearOfStudy, d.gpa, `${d.graduation}-01`, d.interestArea, d.relocation] },
+      { sql: `INSERT INTO student_profiles (user_id, name, surname, city_key, city_other, major_key, year_of_study, gpa, graduation_date, interest_area, interest_other, relocation)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        params: [id, d.name, d.surname, d.city, d.cityOther, d.major, d.yearOfStudy, d.gpa, `${d.graduation}-01`, d.interestArea, d.interestOther, d.relocation] },
     ]);
     const res = { id };
     userId = res.id;
@@ -133,9 +133,9 @@ auth.post('/register/employer', async (c) => {
     const id = crypto.randomUUID();
     await c.var.db.batch([
       { sql: `INSERT INTO users (id, role, email, phone, password_hash, status, preferred_language) VALUES ($1, 'employer', $2, $3, $4, 'unverified', $5)`, params: [id, d.email, d.phone, hash, d.language] },
-      { sql: `INSERT INTO employer_profiles (user_id, company_name, company_lc, bin, industry_key, size_key, city_key, city_other, contact_name, contact_surname, position, website, description)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        params: [id, d.companyName, d.companyName.toLocaleLowerCase(), d.bin, d.industry, d.size, d.city, d.cityOther, d.contactName, d.contactSurname, d.position, d.website, d.description] },
+      { sql: `INSERT INTO employer_profiles (user_id, company_name, company_lc, bin, industry_key, industry_other, size_key, city_key, city_other, contact_name, contact_surname, position, website, description)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        params: [id, d.companyName, d.companyName.toLocaleLowerCase(), d.bin, d.industry, d.industryOther, d.size, d.city, d.cityOther, d.contactName, d.contactSurname, d.position, d.website, d.description] },
     ]);
     const res = { id };
     userId = res.id;

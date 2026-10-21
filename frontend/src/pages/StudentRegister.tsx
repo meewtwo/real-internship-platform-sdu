@@ -2,7 +2,7 @@ import { AtSign, BookOpen, Calendar, GraduationCap, Hash, Lock, MapPin, Phone, T
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CITY_KEYS, INTEREST_KEYS, MAJOR_KEYS, RELOCATION_KEYS, YEAR_KEYS, formatPhoneMask, sanitizeGpaInput, validateStudentRegistration } from '@sdu/shared';
-import { CityField, MonthYearField, PasswordChecklist, PasswordField, SelectField, TermsCheckbox, TermsModal } from '../components/Controls';
+import { CityField, MonthYearField, PasswordChecklist, PasswordField, SelectField, SelectWithOtherField, TermsCheckbox, TermsModal } from '../components/Controls';
 import { TextField } from '../components/Field';
 import { RegisterLayout, type Cell, type Step } from '../components/RegisterLayout';
 import { SegmentedField } from '../components/SegmentedField';
@@ -13,7 +13,7 @@ import type { PendingVerify } from './VerifyCode';
 
 const DEFAULTS = {
   studentId: '', name: '', surname: '', email: '', phone: '', city: '', cityOther: '', major: '', yearOfStudy: '', gpa: '', graduation: '',
-  interestArea: '', relocation: '', password: '', confirmPassword: '', acceptTerms: false,
+  interestArea: '', interestOther: '', relocation: '', password: '', confirmPassword: '', acceptTerms: false,
 };
 type V = typeof DEFAULTS;
 
@@ -74,8 +74,10 @@ export function StudentRegister({ onRegistered }: { onRegistered: (p: PendingVer
     { name: 'graduation', span: 1, render: (l) => (
       <MonthYearField label={t('auth:fields.graduation')} value={v.graduation} errLines={l} icon={<Calendar size={16} />} onChange={(x) => { set('graduation', x); touch('graduation'); }} onBlur={blur('graduation')} error={shown('graduation')} />) },
     { name: 'interestArea', span: 1, pair: true, render: (l) => (
-      <SelectField name="interestArea" label={t('auth:fields.interestArea')} value={v.interestArea} errLines={l} icon={<Target size={16} />} placeholder={t('auth:placeholders.select')} options={opt('interests', INTEREST_KEYS)}
-        onChange={(x) => set('interestArea', x)} onBlur={blur('interestArea')} error={shown('interestArea')} valid={ok('interestArea')} />) },
+      <SelectWithOtherField name="interestArea" otherName="interestOther" label={t('auth:fields.interestArea')} otherLabel={t('auth:fields.interestOther')} otherPlaceholder={t('auth:placeholders.interestOther')}
+        value={v.interestArea} other={v.interestOther} errLines={l} icon={<Target size={16} />} placeholder={t('auth:placeholders.select')} options={opt('interests', INTEREST_KEYS)}
+        onChange={(x, o) => { set('interestArea', x); set('interestOther', o); }} onBlur={blur('interestArea')} onBlurOther={blur('interestOther')}
+        error={shown('interestArea')} errorOther={shown('interestOther')} valid={ok('interestArea')} validOther={ok('interestOther')} />) },
     { name: 'relocation', span: 2, pair: true, render: (l) => (
       <SegmentedField name="relocation" label={t('auth:fields.relocation')} value={v.relocation as never} errLines={l} options={opt('relocation', RELOCATION_KEYS) as never}
         onChange={(x) => { set('relocation', x); touch('relocation'); }} error={shown('relocation')} />) },
@@ -89,7 +91,7 @@ export function StudentRegister({ onRegistered }: { onRegistered: (p: PendingVer
   const steps: Step[] = [
     { title: t('auth:register.steps.s1'), fields: ['studentId', 'phone', 'name', 'surname', 'email'] },
     { title: t('auth:register.steps.s2'), fields: ['city', 'major', 'yearOfStudy', 'gpa', 'graduation'] },
-    { title: t('auth:register.steps.s3'), fields: ['interestArea', 'relocation', 'password', 'confirmPassword', 'acceptTerms'] },
+    { title: t('auth:register.steps.s3'), fields: ['interestArea', 'interestOther', 'relocation', 'password', 'confirmPassword', 'acceptTerms'] },
   ];
   const ctx = { studentId: v.studentId, name: v.name, surname: v.surname, email: v.email };
   const checklist = <PasswordChecklist password={v.password} ctx={ctx} compact />;

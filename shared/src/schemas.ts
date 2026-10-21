@@ -70,6 +70,7 @@ export const studentRegisterSchema = z.strictObject({
   gpa: field(V.validateGpa),
   graduation: raw(),
   interestArea: field(V.validateInterest),
+  interestOther: raw().optional(),
   relocation: field(V.validateRelocation),
   password: raw(),
   confirmPassword: raw(),
@@ -80,13 +81,19 @@ export const studentRegisterSchema = z.strictObject({
 export interface StudentRegistration {
   studentId: string; name: string; surname: string; email: string; phone: string;
   city: CityKey; cityOther: string | null; major: MajorKey; yearOfStudy: YearKey; gpa: string; graduation: string;
-  interestArea: InterestKey; relocation: RelocationKey; password: string; acceptTerms: true; language: Language;
+  interestArea: InterestKey; interestOther: string | null; relocation: RelocationKey; password: string; acceptTerms: true; language: Language;
 }
 
 function cityCross(input: Record<string, unknown>, fields: FieldErrors, out: FieldErrors) {
   const c = V.validateCity(input.city, input.cityOther);
   if (!c.cityOther.ok && !('cityOther' in fields)) out.cityOther = c.cityOther.code;
 }
+/** "Other" free text next to a dropdown (e.g. interestArea + interestOther): required and checked only when the key is 'other'. */
+function otherCross(input: Record<string, unknown>, fields: FieldErrors, out: FieldErrors, key: string, otherKey: string) {
+  const r = V.validateWithOther(input[key] as string | undefined, input[otherKey]);
+  if (!r.ok && !(otherKey in fields)) out[otherKey] = r.code;
+}
+const otherValue = (key: unknown, other: unknown): string | null => { const r = V.validateWithOther(key as string, other); return r.ok ? r.value : null; };
 
 export function validateStudentRegistration(input: unknown, now: Date = new Date()): ParseResult<StudentRegistration> {
   return run(
@@ -96,6 +103,7 @@ export function validateStudentRegistration(input: unknown, now: Date = new Date
       const out: FieldErrors = {};
       if (!i) return out;
       cityCross(i, fields, out);
+      otherCross(i, fields, out, 'interestArea', 'interestOther');
       const year = V.validateYear(i.yearOfStudy);
       const g = V.validateGraduation(i.graduation, year.ok ? year.value : null, now);
       if (!g.ok) out.graduation = g.code;
@@ -122,7 +130,7 @@ export function validateStudentRegistration(input: unknown, now: Date = new Date
         email: p.email as string, phone: p.phone as string, city: p.city as CityKey,
         cityOther: c.cityOther.ok ? c.cityOther.value : null,
         major: p.major as MajorKey, yearOfStudy: p.yearOfStudy as YearKey, gpa: p.gpa as string,
-        graduation: String(p.graduation).trim(), interestArea: p.interestArea as InterestKey,
+        graduation: String(p.graduation).trim(), interestArea: p.interestArea as InterestKey, interestOther: otherValue(p.interestArea, p.interestOther),
         relocation: p.relocation as RelocationKey, password: p.password as string, acceptTerms: true as const,
         language: ((p.language as Language | undefined) ?? 'en'),
       };
@@ -135,6 +143,7 @@ export const employerRegisterSchema = z.strictObject({
   companyName: field(V.validateCompanyName),
   bin: field(V.validateBin),
   industry: field(V.validateIndustry),
+  industryOther: raw().optional(),
   size: field(V.validateCompanySize),
   city: field(V.validateCityKey),
   cityOther: raw().optional(),
@@ -152,7 +161,7 @@ export const employerRegisterSchema = z.strictObject({
 });
 
 export interface EmployerRegistration {
-  companyName: string; bin: string; industry: IndustryKey; size: CompanySizeKey; city: CityKey; cityOther: string | null;
+  companyName: string; bin: string; industry: IndustryKey; industryOther: string | null; size: CompanySizeKey; city: CityKey; cityOther: string | null;
   contactName: string; contactSurname: string; position: string; email: string; phone: string;
   website: string | null; description: string | null; password: string; acceptTerms: true; language: Language;
 }
@@ -165,6 +174,7 @@ export function validateEmployerRegistration(input: unknown): ParseResult<Employ
       const out: FieldErrors = {};
       if (!i) return out;
       cityCross(i, fields, out);
+      otherCross(i, fields, out, 'industry', 'industryOther');
       const email = V.validateWorkEmail(i.email);
       const cn = V.validatePersonName(i.contactName);
       const cs = V.validatePersonName(i.contactSurname);
@@ -182,7 +192,7 @@ export function validateEmployerRegistration(input: unknown): ParseResult<Employ
       const p = d as Record<string, unknown>;
       const c = V.validateCity(p.city, p.cityOther);
       return {
-        companyName: p.companyName as string, bin: p.bin as string, industry: p.industry as IndustryKey,
+        companyName: p.companyName as string, bin: p.bin as string, industry: p.industry as IndustryKey, industryOther: otherValue(p.industry, p.industryOther),
         size: p.size as CompanySizeKey, city: p.city as CityKey, cityOther: c.cityOther.ok ? c.cityOther.value : null,
         contactName: p.contactName as string, contactSurname: p.contactSurname as string, position: p.position as string,
         email: p.email as string, phone: p.phone as string, website: (p.website as string | null | undefined) ?? null,
@@ -205,6 +215,7 @@ export const studentProfileSchema = z.strictObject({
   gpa: field(V.validateGpa),
   graduation: raw(),
   interestArea: field(V.validateInterest),
+  interestOther: raw().optional(),
   relocation: field(V.validateRelocation),
   skills: field((v) => V.validateTags(v, 30, 'TAGS_TOO_MANY')),
   interests: field((v) => V.validateTags(v, 10, 'INTERESTS_TOO_MANY')),
@@ -212,7 +223,7 @@ export const studentProfileSchema = z.strictObject({
 
 export interface StudentProfileInput {
   name: string; surname: string; phone: string; city: CityKey; cityOther: string | null; major: MajorKey;
-  yearOfStudy: YearKey; gpa: string; graduation: string; interestArea: InterestKey; relocation: RelocationKey;
+  yearOfStudy: YearKey; gpa: string; graduation: string; interestArea: InterestKey; interestOther: string | null; relocation: RelocationKey;
   skills: string[]; interests: string[];
 }
 
@@ -224,6 +235,7 @@ export function validateStudentProfile(input: unknown, now: Date = new Date()): 
       const out: FieldErrors = {};
       if (!i) return out;
       cityCross(i, fields, out);
+      otherCross(i, fields, out, 'interestArea', 'interestOther');
       const year = V.validateYear(i.yearOfStudy);
       const g = V.validateGraduation(i.graduation, year.ok ? year.value : null, now);
       if (!g.ok) out.graduation = g.code;
@@ -235,7 +247,7 @@ export function validateStudentProfile(input: unknown, now: Date = new Date()): 
       return {
         name: p.name as string, surname: p.surname as string, phone: p.phone as string, city: p.city as CityKey,
         cityOther: c.cityOther.ok ? c.cityOther.value : null, major: p.major as MajorKey, yearOfStudy: p.yearOfStudy as YearKey,
-        gpa: p.gpa as string, graduation: String(p.graduation).trim(), interestArea: p.interestArea as InterestKey,
+        gpa: p.gpa as string, graduation: String(p.graduation).trim(), interestArea: p.interestArea as InterestKey, interestOther: otherValue(p.interestArea, p.interestOther),
         relocation: p.relocation as RelocationKey, skills: p.skills as string[], interests: p.interests as string[],
       };
     },
@@ -245,6 +257,7 @@ export function validateStudentProfile(input: unknown, now: Date = new Date()): 
 export const employerProfileSchema = z.strictObject({
   companyName: field(V.validateCompanyName),
   industry: field(V.validateIndustry),
+  industryOther: raw().optional(),
   size: field(V.validateCompanySize),
   city: field(V.validateCityKey),
   cityOther: raw().optional(),
@@ -257,7 +270,7 @@ export const employerProfileSchema = z.strictObject({
 });
 
 export interface EmployerProfileInput {
-  companyName: string; industry: IndustryKey; size: CompanySizeKey; city: CityKey; cityOther: string | null;
+  companyName: string; industry: IndustryKey; industryOther: string | null; size: CompanySizeKey; city: CityKey; cityOther: string | null;
   contactName: string; contactSurname: string; position: string; phone: string; website: string | null; description: string | null;
 }
 
@@ -267,14 +280,14 @@ export function validateEmployerProfile(input: unknown): ParseResult<EmployerPro
     input,
     (i, fields) => {
       const out: FieldErrors = {};
-      if (i) cityCross(i, fields, out);
+      if (i) { cityCross(i, fields, out); otherCross(i, fields, out, 'industry', 'industryOther'); }
       return out;
     },
     (d) => {
       const p = d as Record<string, unknown>;
       const c = V.validateCity(p.city, p.cityOther);
       return {
-        companyName: p.companyName as string, industry: p.industry as IndustryKey, size: p.size as CompanySizeKey,
+        companyName: p.companyName as string, industry: p.industry as IndustryKey, industryOther: otherValue(p.industry, p.industryOther), size: p.size as CompanySizeKey,
         city: p.city as CityKey, cityOther: c.cityOther.ok ? c.cityOther.value : null, contactName: p.contactName as string,
         contactSurname: p.contactSurname as string, position: p.position as string, phone: p.phone as string,
         website: (p.website as string | null | undefined) ?? null, description: (p.description as string | null | undefined) ?? null,
@@ -388,6 +401,7 @@ export const vacancySchema = z.strictObject({
   description: field(V.validateVacancyDescription),
   kind: field(V.validateVacancyKind),
   industry: field(V.validateIndustry),
+  industryOther: raw().optional(),
   city: field(V.validateCityKey),
   cityOther: raw().optional(),
   workFormat: field(V.validateWorkFormat),
@@ -398,7 +412,7 @@ export const vacancySchema = z.strictObject({
   requiredSkills: field(V.validateRequiredSkills),
 });
 export interface VacancyInput {
-  title: string; description: string; kind: V.VacancyKindT; industry: IndustryKey; city: CityKey; cityOther: string | null;
+  title: string; description: string; kind: V.VacancyKindT; industry: IndustryKey; industryOther: string | null; city: CityKey; cityOther: string | null;
   workFormat: V.WorkFormatT; minGpa: string | null; deadline: string | null; requiredSkills: string[]; salaryMin: number | null; salaryMax: number | null;
 }
 export function validateVacancy(input: unknown, now: Date = new Date()): ParseResult<VacancyInput> {
@@ -409,6 +423,7 @@ export function validateVacancy(input: unknown, now: Date = new Date()): ParseRe
       const out: FieldErrors = {};
       if (!i) return out;
       cityCross(i, fields, out);
+      otherCross(i, fields, out, 'industry', 'industryOther');
       const d = V.validateDeadline(i.deadline, now);
       if (!d.ok) out.deadline = d.code;
       const a = V.validateSalary(i.salaryMin), b = V.validateSalary(i.salaryMax);
@@ -419,7 +434,7 @@ export function validateVacancy(input: unknown, now: Date = new Date()): ParseRe
       const p = d as Record<string, unknown>;
       const c = V.validateCity(p.city, p.cityOther);
       return {
-        title: p.title as string, description: p.description as string, kind: p.kind as V.VacancyKindT, industry: p.industry as IndustryKey,
+        title: p.title as string, description: p.description as string, kind: p.kind as V.VacancyKindT, industry: p.industry as IndustryKey, industryOther: otherValue(p.industry, p.industryOther),
         city: p.city as CityKey, cityOther: c.cityOther.ok ? c.cityOther.value : null, workFormat: p.workFormat as V.WorkFormatT,
         minGpa: (p.minGpa as string | null | undefined) ?? null, deadline: V.validateDeadline(p.deadline, now).ok ? (V.validateDeadline(p.deadline, now) as { value: string | null }).value : null,
         requiredSkills: p.requiredSkills as string[], salaryMin: (p.salaryMin as number | null | undefined) ?? null, salaryMax: (p.salaryMax as number | null | undefined) ?? null,

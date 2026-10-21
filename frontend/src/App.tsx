@@ -17,12 +17,11 @@ const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
 const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })));
 const Analytics = lazy(() => import('./pages/app/Analytics').then((m) => ({ default: m.Analytics })));
-const Approvals = lazy(() => import('./pages/app/Admin').then((m) => ({ default: m.Approvals })));
+const Companies = lazy(() => import('./pages/app/Admin').then((m) => ({ default: m.Companies })));
 const Applicants = lazy(() => import('./pages/app/Applicants').then((m) => ({ default: m.Applicants })));
 const Candidates = lazy(() => import('./pages/app/Applicants').then((m) => ({ default: m.Candidates })));
 const CvPage = lazy(() => import('./pages/app/CvPage').then((m) => ({ default: m.CvPage })));
 const Favorites = lazy(() => import('./pages/app/Favorites').then((m) => ({ default: m.Favorites })));
-const ResumePage = lazy(() => import('./pages/app/ResumePage').then((m) => ({ default: m.ResumePage })));
 const Home = lazy(() => import('./pages/Home').then((m) => ({ default: m.Home })));
 const MyApplications = lazy(() => import('./pages/app/MyApplications').then((m) => ({ default: m.MyApplications })));
 const MyVacancies = lazy(() => import('./pages/app/MyVacancies').then((m) => ({ default: m.MyVacancies })));
@@ -71,7 +70,8 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Only roles={['student', 'employer']}><Profile /></Only>} />
         <Route path="/favorites" element={<Only roles={['student']}><Favorites /></Only>} />
-        <Route path="/resume" element={<Only roles={['student']}><ResumePage /></Only>} />
+        {/* the former "My résumé" (transcript import) tab was removed: its URL now opens the Builder */}
+        <Route path="/resume" element={<Navigate to="/resume/builder" replace />} />
         <Route path="/resume/builder" element={<Only roles={['student']}><ResumeBuilder /></Only>} />
         <Route path="/resume/builder/:id" element={<Only roles={['student']}><ResumeEditor /></Only>} />
         <Route path="/messages" element={<Only roles={['student', 'employer']}><MessagesList /></Only>} />
@@ -88,7 +88,8 @@ export default function App() {
         <Route path="/vacancies/:id/applicants" element={<Only roles={['employer']}><Applicants /></Only>} />
         <Route path="/candidates" element={<Only roles={['employer']}><Candidates /></Only>} />
         <Route path="/notifications" element={<Notifications />} />
-        <Route path="/approvals" element={<Only roles={['admin']}><Approvals /></Only>} />
+        <Route path="/admin/companies" element={<Only roles={['admin']}><Companies /></Only>} />
+        <Route path="/approvals" element={<Navigate to="/admin/companies" replace />} />
         <Route path="/analytics" element={<Only roles={['admin']}><Analytics /></Only>} />
       </Route>
       <Route path="*" element={<NotFound />} />

@@ -19,5 +19,5 @@ export const useVacancyTabs = () => {
 };
 export const useResumeTabs = () => {
   const { t } = useTranslation();
-  return [{ to: '/resume', label: t('nav.resume'), end: true }, { to: '/resume/builder', label: t('nav.builder') }, { to: '/cv', label: t('nav.cv') }];
+  return [{ to: '/resume/builder', label: t('nav.builder') }, { to: '/cv', label: t('nav.cv') }];
 };

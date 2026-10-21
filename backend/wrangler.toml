@@ -10,6 +10,12 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
+# Custom domains (also reachable on sdu-career-match.<subdomain>.workers.dev). Listed here so deploys keep them.
+routes = [
+  { pattern = "sdu.notatrap.dev", custom_domain = true },
+  { pattern = "sdu-career.notatrap.dev", custom_domain = true },
+]
+
 # Cron Triggers: retry failed instant e-mails every 15 minutes; weekly digest Monday 04:00 UTC (09:00 Almaty)
 [triggers]
 crons = ["*/15 * * * *", "0 4 * * 1"]
@@ -20,7 +26,7 @@ name = "EMAIL"
 
 [vars]
 ENVIRONMENT = "production"
-APP_URL = "https://sdu-career-match.230107010.workers.dev"
+APP_URL = "https://sdu.notatrap.dev"
 MAIL_FROM = "SDU Career Match <no-reply@notatrap.dev>"
 
 # Cloudflare D1 (SQLite). The schema is database/d1/*.sql — the SAME files the local server and the tests use:

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CITY_KEYS, INDUSTRY_KEYS, VACANCY_KINDS, WORK_FORMATS, sanitizeGpaInput, validateVacancy } from '@sdu/shared';
-import { CityField, SelectField } from '../../components/Controls';
+import { CityField, SelectField, SelectWithOtherField } from '../../components/Controls';
 import { TextAreaField, TextField } from '../../components/Field';
 import { TagInput } from '../../components/TagInput';
 import { VacancyAutofill, type VacancyDraft } from '../../components/VacancyAutofill';
@@ -15,7 +15,7 @@ import { useAppForm } from '../../lib/form';
 import { usePageTitle } from '../../lib/usePageTitle';
 import type { VacancyDto } from './VacancyCard';
 
-const D = { title: '', description: '', kind: '', industry: '', city: '', cityOther: '', workFormat: '', minGpa: '', deadline: '', salaryMin: '', salaryMax: '', requiredSkills: [] as string[] };
+const D = { title: '', description: '', kind: '', industry: '', industryOther: '', city: '', cityOther: '', workFormat: '', minGpa: '', deadline: '', salaryMin: '', salaryMax: '', requiredSkills: [] as string[] };
 type V = typeof D;
 
 export function VacancyForm() {
@@ -38,7 +38,7 @@ export function VacancyForm() {
   useEffect(() => {
     if (!edit) return;
     api<{ vacancy: VacancyDto }>('GET', `/api/vacancies/${id}`).then(({ vacancy: x }) => {
-      const next: V = { title: x.title, description: x.description, kind: x.kind, industry: x.industry, city: x.city, cityOther: x.cityOther ?? '', workFormat: x.workFormat, minGpa: x.minGpa ?? '', deadline: x.deadline ?? '', salaryMin: x.salaryMin ? String(x.salaryMin) : '', salaryMax: x.salaryMax ? String(x.salaryMax) : '', requiredSkills: x.requiredSkills };
+      const next: V = { title: x.title, description: x.description, kind: x.kind, industry: x.industry, industryOther: x.industryOther ?? '', city: x.city, cityOther: x.cityOther ?? '', workFormat: x.workFormat, minGpa: x.minGpa ?? '', deadline: x.deadline ?? '', salaryMin: x.salaryMin ? String(x.salaryMin) : '', salaryMax: x.salaryMax ? String(x.salaryMax) : '', requiredSkills: x.requiredSkills };
       for (const [k, val] of Object.entries(next)) set(k as keyof V & string, val as never);
       setLoaded(true);
     }).catch((e) => setLoadErr(apiErrText(t, e)));
@@ -51,7 +51,7 @@ export function VacancyForm() {
     put('title', str(d.title)?.slice(0, 120)); put('description', str(d.description)?.slice(0, 4000));
     put('kind', d.kind && (VACANCY_KINDS as readonly string[]).includes(d.kind) ? d.kind : undefined);
     put('workFormat', d.workFormat && (WORK_FORMATS as readonly string[]).includes(d.workFormat) ? d.workFormat : undefined);
-    put('industry', d.industry && (INDUSTRY_KEYS as readonly string[]).includes(d.industry) ? d.industry : undefined);
+    if (d.industry && (INDUSTRY_KEYS as readonly string[]).includes(d.industry)) { set('industry', d.industry); if (d.industry !== 'other') set('industryOther', ''); touch('industry'); }
     if (d.city && (CITY_KEYS as readonly string[]).includes(d.city)) { set('city', d.city); set('cityOther', ''); touch('city'); }
     put('minGpa', str(d.minGpa)); put('salaryMin', d.salaryMin ? String(d.salaryMin) : undefined); put('salaryMax', d.salaryMax ? String(d.salaryMax) : undefined);
     put('requiredSkills', d.requiredSkills?.slice(0, 15));
@@ -83,7 +83,10 @@ export function VacancyForm() {
           <div className="sm:col-span-2"><TextAreaField name="description" label={t('app:form.description')} value={v.description} max={4000} rows={7} onChange={(x) => set('description', x.slice(0, 4100))} onBlur={() => touch('description')} error={shown('description')} /></div>
           <SelectField name="kind" label={t('app:form.kind')} value={v.kind} icon={<Building2 size={16} />} errLines={1} placeholder={t('auth:placeholders.select')} options={opt('kinds', VACANCY_KINDS)} onChange={(x) => set('kind', x)} onBlur={() => touch('kind')} error={shown('kind')} valid={ok('kind')} />
           <SelectField name="workFormat" label={t('app:form.format')} value={v.workFormat} icon={<Building2 size={16} />} errLines={1} placeholder={t('auth:placeholders.select')} options={opt('formats', WORK_FORMATS)} onChange={(x) => set('workFormat', x)} onBlur={() => touch('workFormat')} error={shown('workFormat')} valid={ok('workFormat')} />
-          <SelectField name="industry" label={t('app:form.industry')} value={v.industry} icon={<Factory size={16} />} errLines={1} placeholder={t('auth:placeholders.select')} options={opt('industries', INDUSTRY_KEYS)} onChange={(x) => set('industry', x)} onBlur={() => touch('industry')} error={shown('industry')} valid={ok('industry')} />
+          <SelectWithOtherField name="industry" otherName="industryOther" label={t('app:form.industry')} otherLabel={t('auth:fields.industryOther')} otherPlaceholder={t('auth:placeholders.industryOther')}
+            value={v.industry} other={v.industryOther} icon={<Factory size={16} />} errLines={1} placeholder={t('auth:placeholders.select')} options={opt('industries', INDUSTRY_KEYS)}
+            onChange={(x, o) => { set('industry', x); set('industryOther', o); }} onBlur={() => touch('industry')} onBlurOther={() => touch('industryOther')}
+            error={shown('industry')} errorOther={shown('industryOther')} valid={ok('industry')} validOther={ok('industryOther')} />
           <CityField label={t('app:form.city')} city={v.city} cityOther={v.cityOther} keys={CITY_KEYS} errLines={1} icon={<MapPin size={16} />} onChange={(c, o) => { set('city', c); set('cityOther', o); }} onBlur={() => touch('city')} error={shown('city')} errorOther={shown('cityOther')} />
           <TextField name="minGpa" label={t('app:form.minGpa')} value={v.minGpa} icon={<TrendingUp size={16} />} inputMode="decimal" maxLength={4} errLines={1} onChange={(x) => set('minGpa', sanitizeGpaInput(x))} onBlur={() => touch('minGpa')} error={shown('minGpa')} valid={ok('minGpa') && v.minGpa !== ''} />
           <TextField name="deadline" label={t('app:form.deadline')} value={v.deadline} icon={<Calendar size={16} />} type="date" errLines={1} onChange={(x) => set('deadline', x)} onBlur={() => touch('deadline')} error={shown('deadline')} valid={ok('deadline') && v.deadline !== ''} />

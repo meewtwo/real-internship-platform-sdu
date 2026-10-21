@@ -64,7 +64,7 @@ export async function buildSeed(): Promise<Stmt[]> {
   for (const e of demoOnly ? employers.filter((x) => x[10] === 'active') : employers) {
     const id = uuid(); eids[e[0]] = id;
     out.push({ sql: `INSERT INTO users (id, role, email, phone, password_hash, status, preferred_language) VALUES ($1, 'employer', $2, $3, $4, $5, 'en')`, params: [id, e[0], e[1], demoHash, e[10]] });
-    out.push({ sql: `INSERT INTO employer_profiles (user_id, company_name, company_lc, bin, industry_key, size_key, city_key, contact_name, contact_surname, position) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, params: [id, e[2], e[2].toLocaleLowerCase(), e[3], e[4], e[5], e[6], e[7], e[8], e[9]] });
+    out.push({ sql: `INSERT INTO employer_profiles (user_id, company_name, company_lc, bin, industry_key, size_key, city_key, contact_name, contact_surname, position, review_status, reviewed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, params: [id, e[2], e[2].toLocaleLowerCase(), e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10] === 'active' ? 'approved' : 'pending', e[10] === 'active' ? now() : null] });
   }
   const V: [string, string, string, string, string, string, number | null, number | null, string[]][] = [
     ['hr@kaspi-demo.kz', 'Data Analyst Intern', 'Work with the analytics team on dashboards, SQL reports and A/B tests for our consumer products. You will own a small project from data collection to the final presentation.', 'internship', 'finance_banking', 'almaty', 250000, 350000, ['Python', 'SQL', 'Power BI', 'Data Analysis']],

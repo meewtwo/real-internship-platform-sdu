@@ -10,7 +10,7 @@ import { TextAreaField } from '../../components/Field';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { apiErrText } from '../../lib/errors';
-import { cityLabel, fmtDate } from '../../lib/format';
+import { cityLabel, fmtDate, optionLabel } from '../../lib/format';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { useApi } from '../../lib/useApi';
 import { FavoriteStar, type VacancyDto } from './VacancyCard';
@@ -88,7 +88,7 @@ export function VacancyDetail() {
             <p className="mt-2 flex flex-wrap gap-1.5 text-[12px] font-bold">
               <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-dark">{t(`options:kinds.${v.kind}`)}</span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5">{t(`options:formats.${v.workFormat}`)} · {v.workFormat === 'remote' ? t('app:remoteOnly') : cityLabel(t, v.city, v.cityOther)}</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5">{t(`options:industries.${v.industry}`)}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5">{optionLabel(t, 'industries', v.industry, v.industryOther)}</span>
               {v.minGpa && <span className="rounded-full bg-slate-100 px-2 py-0.5">{t('app:minGpa', { gpa: v.minGpa })}</span>}
               <span className="rounded-full bg-slate-100 px-2 py-0.5">{v.deadline ? t('app:deadline', { date: fmtDate(v.deadline) }) : t('app:noDeadline')}</span>
             </p>

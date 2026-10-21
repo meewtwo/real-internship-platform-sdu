@@ -1,7 +1,8 @@
-import { ArrowRight, Check, CircleDashed, Hourglass, Plus } from 'lucide-react';
+import { ArrowRight, Check, CircleDashed, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { MatchResult } from '@sdu/shared';
+import { CompanyStatusBanner } from '../components/CompanyStatusBanner';
 import { MatchBadge, StatusBadge, btnPrimary } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -49,7 +50,7 @@ function StudentDashboard({ name }: { name: string }) {
   const { t } = useTranslation();
   const salaryOf = useSalary();
   const prof = useApi<{ profile: { skills: string[] } }>('/api/profile');
-  const resume = useApi<{ resume: unknown }>('/api/resume');
+  const docs = useApi<{ docs: unknown[] }>('/api/resume-docs');
   const cv = useApi<{ cv: unknown }>('/api/cv');
   const apps = useApi<{ applications: { id: string; status: string; matchPercent: number; createdAt: string; vacancy: { id: string; title: string; company: string } }[] }>('/api/applications');
   const favs = useApi<{ items: unknown[] }>('/api/favorites');
@@ -57,7 +58,7 @@ function StudentDashboard({ name }: { name: string }) {
   const notes = useApi<{ unread: number; items: { id: string; kind: string; params: Record<string, unknown>; link: string | null; read: boolean; createdAt: string }[] }>('/api/notifications');
   const steps = [
     { done: (prof.data?.profile.skills.length ?? 0) >= 3, label: t('app:dash.stepSkills'), to: '/profile' },
-    { done: !!resume.data?.resume, label: t('app:dash.stepResume'), to: '/resume' },
+    { done: (docs.data?.docs.length ?? 0) > 0, label: t('app:dash.stepResume'), to: '/resume/builder' },
     { done: !!cv.data?.cv, label: t('app:dash.stepCv'), to: '/cv' },
     { done: (apps.data?.applications.length ?? 0) > 0, label: t('app:dash.stepApply'), to: '/vacancies' },
   ];
@@ -112,7 +113,7 @@ function StudentDashboard({ name }: { name: string }) {
   );
 }
 
-function EmployerDashboard({ name, pending }: { name: string; pending: boolean }) {
+function EmployerDashboard({ name }: { name: string }) {
   const { t } = useTranslation();
   const mine = useApi<{ vacancies: VacancyDto[] }>('/api/vacancies/mine');
   const ap = useApi<{ applicants: Applicant[] }>('/api/applications/employer');
@@ -120,7 +121,7 @@ function EmployerDashboard({ name, pending }: { name: string; pending: boolean }
   return (
     <>
       <Header name={name} role={t('dashboard.roleEmployer')} sub={t('app:dash.employerSub')} right={<Link to="/vacancies/new" className={btnPrimary}><Plus size={16} aria-hidden />{t('app:mine.new')}</Link>} />
-      {pending && <p role="status" className="mb-5 flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900"><Hourglass className="shrink-0" size={20} aria-hidden />{t('dashboard.pending')}</p>}
+      <CompanyStatusBanner pendingKey="dashboard.pending" className="mb-5" />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile i={0} n={vs.filter((v) => v.status === 'published').length} label={t('app:dash.eTilePub')} /><Tile i={1} n={as.length} label={t('app:dash.eTileApps')} />
         <Tile i={2} n={as.filter((a) => a.status === 'applied').length} label={t('app:dash.eTileNew')} /><Tile i={3} n={vs.filter((v) => v.status === 'draft').length} label={t('app:dash.eTileDraft')} />
@@ -154,7 +155,7 @@ function AdminDashboard({ name }: { name: string }) {
         <Tile i={0} n={an.data?.users.students ?? 0} label={t('app:an.students')} /><Tile i={1} n={an.data?.users.employersActive ?? 0} label={t('app:an.employers')} />
         <Tile i={2} n={an.data?.vacancies.published ?? 0} label={t('app:an.published')} /><Tile i={3} n={an.data?.applications.total ?? 0} label={t('app:an.applications')} />
       </div>
-      <Panel title={t('app:dash.pendingEmployers')} action={<More to="/approvals" label={t('app:dash.seeAll')} />}>
+      <Panel title={t('app:dash.pendingEmployers')} action={<More to="/admin/companies" label={t('app:dash.seeAll')} />}>
         {!pend.data ? <div className="skeleton h-20" /> : pend.data.employers.length === 0 ? <p className="text-[14px] text-muted">{t('app:dash.nothingPending')}</p> : (
           <ul className="divide-y divide-line">{pend.data.employers.slice(0, 5).map((e) => (
             <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"><div className="min-w-0"><p className="truncate font-bold text-navy">{e.companyName}</p><p className="text-[12.5px] text-muted">{t('app:approvals.bin', { bin: e.bin })} · {e.email}</p></div>
@@ -170,5 +171,5 @@ export function Dashboard() {
   const prof = useApi<{ profile: { name?: string; contactName?: string } | null }>('/api/profile');
   if (!user) return null;
   const name = prof.data?.profile?.name ?? prof.data?.profile?.contactName ?? user.email.split('@')[0];
-  return user.role === 'student' ? <StudentDashboard name={name} /> : user.role === 'employer' ? <EmployerDashboard name={name} pending={user.status === 'pending'} /> : <AdminDashboard name={name} />;
+  return user.role === 'student' ? <StudentDashboard name={name} /> : user.role === 'employer' ? <EmployerDashboard name={name} /> : <AdminDashboard name={name} />;
 }

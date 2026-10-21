@@ -169,6 +169,7 @@ export async function makeEmployer(opts: { active?: boolean } = {}) {
   if (v.status !== 200) throw new Error('verify failed');
   if (opts.active !== false) {
     await sql(`UPDATE users SET status = 'active' WHERE email = $1`, [p.email]);
+    await sql(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [p.email]);
     await c.post('/api/auth/logout');
     await c.post('/api/auth/login', { role: 'employer', identifier: p.email, password: p.password });
   }

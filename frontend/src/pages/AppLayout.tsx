@@ -17,7 +17,7 @@ const NAV: Record<Role, Item[]> = {
     { key: 'dashboard', to: '/dashboard', matches: ['/dashboard'] },
     { key: 'vacancies', to: '/vacancies', matches: ['/vacancies', '/recommendations', '/favorites'] },
     { key: 'applications', to: '/applications', matches: ['/applications'] },
-    { key: 'resume', to: '/resume', matches: ['/resume', '/cv'] },
+    { key: 'resume', to: '/resume/builder', matches: ['/resume', '/cv'] },
     { key: 'messages', to: '/messages', matches: ['/messages'] },
     { key: 'ai', to: '/ai', matches: ['/ai'] },
   ],
@@ -29,7 +29,7 @@ const NAV: Record<Role, Item[]> = {
   ],
   admin: [
     { key: 'dashboard', to: '/dashboard', matches: ['/dashboard'] },
-    { key: 'approvals', to: '/approvals', matches: ['/approvals'] },
+    { key: 'companies', to: '/admin/companies', matches: ['/admin/companies'] },
     { key: 'analytics', to: '/analytics', matches: ['/analytics'] },
   ],
 };

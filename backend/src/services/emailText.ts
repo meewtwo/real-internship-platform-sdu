@@ -36,6 +36,7 @@ const T: Record<Language, Strings> = {
       invitation: { subject: (p) => `${s(p.company)} invites you to apply`, body: (p) => `${s(p.company)} invites you to apply for “${s(p.title)}”.` },
       new_application: { subject: (p) => `New application: ${s(p.title)}`, body: (p) => `${s(p.student)} applied to “${s(p.title)}” (${s(p.percent)}% match).` },
       employer_approved: { subject: () => 'Your company was approved', body: () => 'Your company was approved — you can publish vacancies now.' },
+      employer_rejected: { subject: () => 'Your company registration was not approved', body: (p) => `Your company registration was not approved.${p.reason ? ` Reason: ${s(p.reason)}` : ''} Please contact the SDU Career Center — an administrator can review your company again.` },
       new_message: { subject: (p) => `New message: ${s(p.title)}`, body: (p) => `${s(p.from)} wrote to you about “${s(p.title)}”.` },
       interview_update: { subject: (p) => `Interview ${INT.en[s(p.state)] ?? s(p.state)}: ${s(p.title)}`, body: (p) => interviewBody('en', p) },
     },
@@ -48,6 +49,7 @@ const T: Record<Language, Strings> = {
       invitation: { subject: (p) => `${s(p.company)} приглашает откликнуться`, body: (p) => `${s(p.company)} приглашает вас откликнуться на «${s(p.title)}».` },
       new_application: { subject: (p) => `Новый отклик: ${s(p.title)}`, body: (p) => `${s(p.student)} откликнулся на «${s(p.title)}» (совпадение ${s(p.percent)}%).` },
       employer_approved: { subject: () => 'Ваша компания одобрена', body: () => 'Ваша компания одобрена — теперь можно публиковать вакансии.' },
+      employer_rejected: { subject: () => 'Регистрация компании не одобрена', body: (p) => `Регистрация вашей компании не одобрена.${p.reason ? ` Причина: ${s(p.reason)}` : ''} Свяжитесь с Карьерным центром SDU — администратор может рассмотреть компанию повторно.` },
       new_message: { subject: (p) => `Новое сообщение: ${s(p.title)}`, body: (p) => `${s(p.from)} написал(а) вам по поводу «${s(p.title)}».` },
       interview_update: { subject: (p) => `Собеседование — ${INT.ru[s(p.state)] ?? s(p.state)}: ${s(p.title)}`, body: (p) => interviewBody('ru', p) },
     },
@@ -60,6 +62,7 @@ const T: Record<Language, Strings> = {
       invitation: { subject: (p) => `${s(p.company)} өтініш беруге шақырады`, body: (p) => `${s(p.company)} сізді «${s(p.title)}» вакансиясына өтініш беруге шақырады.` },
       new_application: { subject: (p) => `Жаңа өтініш: ${s(p.title)}`, body: (p) => `${s(p.student)} «${s(p.title)}» вакансиясына өтініш берді (сәйкестік ${s(p.percent)}%).` },
       employer_approved: { subject: () => 'Компанияңыз мақұлданды', body: () => 'Компанияңыз мақұлданды — енді вакансия жариялай аласыз.' },
+      employer_rejected: { subject: () => 'Компания тіркеуі мақұлданбады', body: (p) => `Компанияңыздың тіркеуі мақұлданбады.${p.reason ? ` Себебі: ${s(p.reason)}` : ''} SDU мансап орталығына хабарласыңыз — әкімші компанияны қайта қарай алады.` },
       new_message: { subject: (p) => `Жаңа хабарлама: ${s(p.title)}`, body: (p) => `${s(p.from)} сізге «${s(p.title)}» бойынша жазды.` },
       interview_update: { subject: (p) => `Сұхбат — ${INT.kk[s(p.state)] ?? s(p.state)}: ${s(p.title)}`, body: (p) => interviewBody('kk', p) },
     },
@@ -114,7 +117,7 @@ const EXTRA: Record<Language, { new_match: (p: P) => string; saved_search: (p: P
   ru: { new_match: (p) => `Новое совпадение ${s(p.percent)}%: «${s(p.title)}», ${s(p.company)}`, saved_search: (p) => `Новая вакансия по поиску «${s(p.search)}»: «${s(p.title)}», ${s(p.company)}` },
   kk: { new_match: (p) => `Жаңа сәйкестік ${s(p.percent)}%: «${s(p.title)}», ${s(p.company)}`, saved_search: (p) => `«${s(p.search)}» іздеуі бойынша жаңа: «${s(p.title)}», ${s(p.company)}` },
 };
-export const NOTIFY_KINDS_TELEGRAM = ['status_changed', 'invitation', 'new_application', 'employer_approved', 'new_match', 'saved_search', 'new_message', 'interview_update'] as const;
+export const NOTIFY_KINDS_TELEGRAM = ['status_changed', 'invitation', 'new_application', 'employer_approved', 'employer_rejected', 'new_match', 'saved_search', 'new_message', 'interview_update'] as const;
 export function plainNotification(lang: Language, kind: string, params: P): string | null {
   const t = T[lang] ?? T.en, st = STATUS[lang] ?? STATUS.en;
   if (kind === 'new_match' || kind === 'saved_search') return EXTRA[lang][kind](params);
