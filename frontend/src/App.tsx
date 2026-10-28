@@ -18,6 +18,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default:
 const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })));
 const Analytics = lazy(() => import('./pages/app/Analytics').then((m) => ({ default: m.Analytics })));
 const Companies = lazy(() => import('./pages/app/Admin').then((m) => ({ default: m.Companies })));
+const CompanyDetail = lazy(() => import('./pages/app/Admin').then((m) => ({ default: m.CompanyDetail })));
 const Applicants = lazy(() => import('./pages/app/Applicants').then((m) => ({ default: m.Applicants })));
 const Candidates = lazy(() => import('./pages/app/Applicants').then((m) => ({ default: m.Candidates })));
 const CvPage = lazy(() => import('./pages/app/CvPage').then((m) => ({ default: m.CvPage })));
@@ -89,6 +90,8 @@ export default function App() {
         <Route path="/candidates" element={<Only roles={['employer']}><Candidates /></Only>} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/admin/companies" element={<Only roles={['admin']}><Companies /></Only>} />
+        <Route path="/admin/companies/:id" element={<Only roles={['admin']}><CompanyDetail /></Only>} />
+        <Route path="/admin/vacancies/:id" element={<Only roles={['admin']}><VacancyDetail /></Only>} />
         <Route path="/approvals" element={<Navigate to="/admin/companies" replace />} />
         <Route path="/analytics" element={<Only roles={['admin']}><Analytics /></Only>} />
       </Route>

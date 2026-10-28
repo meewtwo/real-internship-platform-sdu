@@ -4,17 +4,19 @@ main = "src/worker.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Custom domains (also reachable on sdu-career-match.<subdomain>.workers.dev). Listed here so deploys keep them.
+# (Top-level key: it must stay above the first [table] header, or TOML files it under that table.)
+routes = [
+  { pattern = "sdu.notatrap.dev", custom_domain = true },
+  { pattern = "sdu-career.notatrap.dev", custom_domain = true },
+]
+workers_dev = true # with routes set, wrangler would otherwise switch the workers.dev address off
+
 [assets]
 directory = "../frontend/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
-
-# Custom domains (also reachable on sdu-career-match.<subdomain>.workers.dev). Listed here so deploys keep them.
-routes = [
-  { pattern = "sdu.notatrap.dev", custom_domain = true },
-  { pattern = "sdu-career.notatrap.dev", custom_domain = true },
-]
 
 # Cron Triggers: retry failed instant e-mails every 15 minutes; weekly digest Monday 04:00 UTC (09:00 Almaty)
 [triggers]

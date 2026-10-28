@@ -11,7 +11,28 @@
   "company": {
     "rejectedTitle": "Your company registration was rejected.",
     "reason": "Reason",
-    "rejectedHelp": "If you think this is a mistake, contact the SDU Career Center — an administrator can review your company again. Until then, vacancies cannot be published."
+    "rejectedHelp": "If you think this is a mistake, contact the SDU Career Center — an administrator can review your company again. Until then, vacancies cannot be published.",
+    "vacancyCount": "Vacancies: {{count}} (published: {{published}})",
+    "view": "View company and vacancies",
+    "viewAria": "View {{name}}",
+    "back": "Back to companies",
+    "vacancies": "Vacancies",
+    "sort": "Sort",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "filter": "Filter vacancies by status",
+    "vacancyStatus": {
+      "draft": "Draft",
+      "published": "Published",
+      "closed": "Closed",
+      "expired": "Expired"
+    },
+    "noneWithStatus": "No vacancies with this status.",
+    "noVacancies": "This company has no vacancies yet.",
+    "noVacanciesUnapproved": "This company has no vacancies. It can prepare drafts, but publishes only after approval.",
+    "created": "Created",
+    "deadline": "Deadline",
+    "applicants": "Applicants"
   },
   "deadline": "Deadline: {{date}}",
   "noDeadline": "No deadline",
@@ -87,7 +108,8 @@
     "status": "Status",
     "closed": "This vacancy is closed.",
     "employerView": "Employer preview — students see a personal match here.",
-    "semantic": "Text similarity is computed by meaning (AI embeddings), also across languages."
+    "semantic": "Text similarity is computed by meaning (AI embeddings), also across languages.",
+    "adminView": "Administrator view (read-only)."
   },
   "apps": {
     "title": "My applications",
@@ -111,7 +133,7 @@
     "title": "My vacancies",
     "new": "New vacancy",
     "empty": "No vacancies yet. Create your first one.",
-    "pendingWarn": "Your company is awaiting approval. You can prepare drafts, but publishing unlocks after approval.",
+    "pendingWarn": "Your company is awaiting approval. Mark drafts with “Publish after approval” and they go live automatically once the company is approved.",
     "status": {
       "draft": "Draft",
       "published": "Published",
@@ -126,7 +148,14 @@
     "published": "Published — {{n}} matching students notified",
     "closed": "Vacancy closed",
     "deleted": "Vacancy deleted",
-    "publishedQueued": "Published — matching students is in progress"
+    "publishedQueued": "Published — matching students is in progress",
+    "draftsWarn": "Drafts not visible to students: {{count}}. Click \"Publish\" on a vacancy to show it to students.",
+    "draftHidden": "Draft — students cannot see it until you publish it.",
+    "expiredHidden": "The application deadline has passed — students no longer see this vacancy.",
+    "request": "Publish after approval",
+    "cancelRequest": "Cancel auto-publish",
+    "requestCancelled": "It will stay a draft",
+    "requestedHidden": "Waiting for approval — published automatically once your company is approved."
   },
   "form": {
     "titleNew": "New vacancy",
@@ -146,7 +175,21 @@
     "save": "Save changes",
     "chars": "{{n}}/4000",
     "salaryMin": "Salary from, ₸/month (optional)",
-    "salaryMax": "Salary to, ₸/month (optional)"
+    "salaryMax": "Salary to, ₸/month (optional)",
+    "suggested": "Suggested skills for this industry",
+    "suggestedGeneral": "Popular skills",
+    "suggestedAllAdded": "All suggested skills are already added.",
+    "suggestAdd": "Add skill {{name}}",
+    "suggestedFull": "You have reached the limit of {{max}} skills. Remove one to add another.",
+    "saveAndPublish": "Save and publish",
+    "savedDraft": "Saved as a draft — students will see it after you publish it",
+    "publishFailed": "Saved as a draft, but not published: {{reason}}",
+    "draftHint": "A draft is visible only to you. Students see the vacancy after it is published.",
+    "draftHintPending": "Your company is awaiting approval: choose \"Save and publish after approval\" and the vacancy goes live automatically once the company is approved.",
+    "saveAndRequest": "Save and publish after approval",
+    "requestedToast": "Saved — it will be published automatically when your company is approved",
+    "savedRequested": "Saved — it will be published automatically when your company is approved",
+    "requestedHint": "This vacancy will be published automatically as soon as an administrator approves your company."
   },
   "appl": {
     "title": "Applicants",
@@ -176,7 +219,7 @@
     "new_application": "{{student}} applied to “{{title}}” ({{percent}}% match)",
     "status_changed": "“{{title}}” at {{company}}: {{status}}",
     "new_match": "New {{percent}}% match: “{{title}}” at {{company}}",
-    "employer_approved": "Your company was approved — you can publish vacancies now.",
+    "employer_approved": "Your company was approved — vacancies you saved with “publish after approval” are now visible to students. Publish any other drafts on My vacancies.",
     "employer_rejected": "Your company registration was not approved. Open My vacancies to see the reason.",
     "invitation": "{{company}} invites you to apply: “{{title}}”",
     "saved_search": "New in your saved search “{{search}}”: “{{title}}” at {{company}}",
@@ -473,7 +516,7 @@
       "dirty": "Unsaved changes…",
       "invalid": "Fix the highlighted fields to save",
       "conflict": "Changed elsewhere",
-      "error": "Could not save — will retry on next edit"
+      "error": "Not saved — press Save to retry"
     },
     "sections": {
       "personal": "Contact",
@@ -599,7 +642,12 @@
       "copy": "Copy",
       "copied": "Link copied",
       "showContact": "Show my email and phone on the public page"
-    }
+    },
+    "save": "Save",
+    "savedToast": "Résumé saved",
+    "saveInvalid": "Not saved: fix the highlighted fields first.",
+    "saveFailed": "Résumé not saved: {{reason}}",
+    "leaveInvalid": "Some fields are invalid, so the latest changes are not saved. Leave anyway?"
   },
   "account": {
     "emailTitle": "E-mail notifications",

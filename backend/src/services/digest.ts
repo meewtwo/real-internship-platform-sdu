@@ -4,7 +4,7 @@ import type { Db } from '../lib/db';
 import { sendMail } from '../lib/mail';
 import { mailLinks } from './emailLinks';
 import { digestEmail, digestIsEmpty, digestLabels, type DigestData, type DigestItem } from './emailText';
-import { SQL_TODAY } from './matching';
+import { SQL_TODAY, STUDENT_VISIBLE } from './matching';
 import { isoAt } from '../lib/sql';
 
 const MIN_GAP_DAYS = 6;
@@ -18,7 +18,7 @@ async function collect(db: Db, c: Cand, since: string, base: string, lang: Langu
   if (c.role === 'student') {
     d.matches = (await db.query<{ id: string; title: string; company: string; percent: number }>(
       `SELECT v.id, v.title, ep.company_name AS company, m.percent FROM matches m JOIN vacancies v ON v.id = m.vacancy_id JOIN employer_profiles ep ON ep.user_id = v.employer_id
-       WHERE m.student_id = $1 AND m.created_at > $2 AND m.percent >= 60 AND v.status = 'published' AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY})
+       WHERE m.student_id = $1 AND m.created_at > $2 AND m.percent >= 60 AND ${STUDENT_VISIBLE}
          AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.student_id = $1 AND a.status <> 'withdrawn')
        ORDER BY m.percent DESC, v.id LIMIT ${TOP}`, [c.id, since])).rows.map((r) => ({ title: r.title, sub: `${r.company} · ${L.match(r.percent)}`, url: `${base}/vacancies/${r.id}` }));
     const notes = async (kind: string) => (await db.query<{ params: Record<string, unknown>; link: string | null }>(
@@ -26,8 +26,8 @@ async function collect(db: Db, c: Cand, since: string, base: string, lang: Langu
     d.saved = (await notes('saved_search')).map((n) => ({ title: String(n.params.title ?? ''), sub: String(n.params.company ?? ''), url: `${base}${n.link ?? '/vacancies'}` }));
     d.status = (await notes('status_changed')).map((n) => ({ title: String(n.params.title ?? ''), sub: `${String(n.params.company ?? '')} · ${L.status[String(n.params.status)] ?? String(n.params.status ?? '')}`, url: `${base}/applications` }));
     d.deadlines = (await db.query<{ id: string; title: string; deadline: string }>(
-      `SELECT v.id, v.title, v.deadline AS deadline FROM favorites f JOIN vacancies v ON v.id = f.vacancy_id
-       WHERE f.user_id = $1 AND v.status = 'published' AND v.deadline BETWEEN ${SQL_TODAY} AND date('now', '+5 hours', '+7 days')
+      `SELECT v.id, v.title, v.deadline AS deadline FROM favorites f JOIN vacancies v ON v.id = f.vacancy_id JOIN employer_profiles ep ON ep.user_id = v.employer_id
+       WHERE f.user_id = $1 AND v.status = 'published' AND ep.review_status = 'approved' AND v.deadline BETWEEN ${SQL_TODAY} AND date('now', '+5 hours', '+7 days')
          AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.student_id = $1 AND a.status <> 'withdrawn')
        ORDER BY v.deadline, v.id LIMIT ${TOP}`, [c.id])).rows.map((r) => ({ title: r.title, sub: L.deadline(r.deadline), url: `${base}/vacancies/${r.id}` }));
   } else {

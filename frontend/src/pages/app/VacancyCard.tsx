@@ -11,7 +11,7 @@ import { useSalary } from '../../lib/useSalary';
 
 export interface VacancyDto {
   id: string; title: string; description: string; kind: string; industry: string; industryOther?: string | null; city: string; cityOther: string | null; workFormat: string; minGpa: string | null;
-  deadline: string | null; status: string; publishedAt: string | null; requiredSkills: string[]; company: { id: string; name: string; website: string | null }; applicants?: number;
+  deadline: string | null; status: string; publishedAt: string | null; createdAt?: string; expired?: boolean; publishRequested?: boolean; requiredSkills: string[]; company: { id: string; name: string; website: string | null }; applicants?: number;
   salaryMin: number | null; salaryMax: number | null; match?: MatchResult | null; applied?: boolean; favorite?: boolean;
 }
 

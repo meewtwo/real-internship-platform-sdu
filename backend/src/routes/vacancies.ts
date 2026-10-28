@@ -5,12 +5,10 @@ import { iso, replaceSkillsStmts, uniqueStamp } from '../lib/sql';
 import { requireAuth } from '../lib/guard';
 import { apiError, readJson, UUID_RE, type AppEnv, type Ctx } from '../lib/http';
 import { rateLimit } from '../lib/ratelimit';
-import { loadStudentSignal, loadStudentSignals, matchFor, SQL_TODAY, toVacancyDto, VACANCY_SELECT, vacancySignal, type VacancyRow } from '../services/matching';
-import { audit, auditIf } from '../services/audit';
+import { companyApproved, loadStudentSignal, loadStudentSignals, matchFor, SQL_TODAY, STUDENT_VISIBLE, toVacancyDto, VACANCY_SELECT, vacancySignal, type VacancyRow } from '../services/matching';
+import { auditIf } from '../services/audit';
 import { notifyIf } from '../services/notify';
-import { alertSavedSearches } from '../services/savedSearches';
-import { matchStudents } from '../services/publish';
-import { enqueue } from '../services/jobs';
+import { publishVacancy } from '../services/publish';
 import { embedVacancy } from '../services/embeddings';
 
 export const vacancies = new Hono<AppEnv>();
@@ -72,52 +70,36 @@ vacancies.put('/:id', requireAuth('employer'), async (c) => {
 vacancies.post('/:id/publish', requireAuth('employer'), async (c) => {
   const cur = await ownVacancy(c, c.req.param('id'));
   if (!cur) return apiError(c, 404, 'NOT_FOUND');
-  if (c.var.auth!.user.status !== 'active') {
-    const r = (await c.var.db.query<{ review_status: string }>('SELECT review_status FROM employer_profiles WHERE user_id = $1', [c.var.auth!.user.id])).rows[0];
-    return apiError(c, 403, r?.review_status === 'rejected' ? 'EMPLOYER_REJECTED' : 'EMPLOYER_NOT_APPROVED');
-  }
+  // the same approval field the student list checks (STUDENT_VISIBLE), so a vacancy can never be published and still be hidden
+  const review = (await c.var.db.query<{ review_status: string }>('SELECT review_status FROM employer_profiles WHERE user_id = $1', [c.var.auth!.user.id])).rows[0]?.review_status;
+  if (c.var.auth!.user.status !== 'active' || review !== 'approved') return apiError(c, 403, review === 'rejected' ? 'EMPLOYER_REJECTED' : 'EMPLOYER_NOT_APPROVED');
   if (cur.status === 'published') return c.json({ vacancy: toVacancyDto(cur), matches: 0 });
-  // re-validate stored data so a draft can never be published in an invalid state
-  const chk = validateVacancy({
-    title: cur.title, description: cur.description, kind: cur.kind, industry: cur.industry_key,
-    // drafts saved before the "Other" text existed have none; they stay publishable (the editor asks for it on the next edit)
-    industryOther: cur.industry_other ?? (cur.industry_key === 'other' ? 'Other' : undefined), city: cur.city_key, cityOther: cur.city_other ?? undefined,
-    workFormat: cur.work_format, minGpa: cur.min_gpa ?? undefined, deadline: cur.deadline ?? undefined, requiredSkills: cur.skills, salaryMin: cur.salary_min ?? undefined, salaryMax: cur.salary_max ?? undefined,
-  });
-  if (!chk.ok && !(Object.keys(chk.fields).length === 1 && chk.fields.deadline === 'DEADLINE_PAST')) return apiError(c, 400, 'VALIDATION_FAILED', { fields: chk.fields });
-  if (cur.deadline && cur.deadline < new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { deadline: 'DEADLINE_PAST' } });
-  const queued = !!c.env.JOBS;
-  if (!queued) cur.emb = await embedVacancy(c.var.db, c.env, cur); // semantic vector first (outside the transaction: it calls an external service); a failure just means lexical matching
-  // atomic draft → published: of two concurrent publish requests only one UPDATE matches, so matches/notifications are never doubled
-  const won = await c.var.db.query(`UPDATE vacancies SET status = 'published', published_at = COALESCE(published_at, $2) WHERE id = $1 AND status = 'draft'`, [cur.id, iso()]);
-  let result: number | null = null;
-  if (won.rowCount) {
-    try {
-      // with a queue binding the heavy part (scoring every student) runs in the background job; otherwise it runs here
-      const matches = queued ? 0 : await matchStudents(c.var.db, cur);
-      let alerts = 0;
-      if (!queued) {
-        try { alerts = await alertSavedSearches(c.var.db, cur); }
-        catch (e) { console.error(JSON.stringify({ level: 'error', msg: 'saved-search alerts failed', detail: (e as Error).message })); }
-      }
-      await audit(c.var.db, { id: c.var.auth!.user.id, role: 'employer' }, 'vacancy.publish', { type: 'vacancy', id: cur.id }, { matches, alerts, queued });
-      result = matches;
-    } catch (e) {
-      // D1 has no multi-step transactions: undo the publish so a failed matching run never leaves a half-published vacancy
-      await c.var.db.query(`UPDATE vacancies SET status = 'draft', published_at = NULL WHERE id = $1 AND status = 'published'`, [cur.id]).catch(() => undefined);
-      throw e;
-    }
-  }
-  if (queued && result !== null) {
-    try { await enqueue(c.env, { type: 'match_vacancy', vacancyId: cur.id }); }
-    catch (e) {
-      // the queue is down: do the work now rather than leave a published vacancy with no matches
-      console.error(JSON.stringify({ level: 'error', msg: 'enqueue failed, matching inline', detail: (e as Error).message }));
-      await matchStudents(c.var.db, cur); await alertSavedSearches(c.var.db, cur);
-    }
-  }
+  // a closed vacancy stays closed (it used to answer 200 here without publishing anything, which looked like success)
+  if (cur.status === 'closed') return apiError(c, 409, 'VACANCY_CLOSED');
+  const r = await publishVacancy(c.var.db, c.env, cur, { id: c.var.auth!.user.id, role: 'employer' });
+  if (!r.ok) return apiError(c, 400, 'VALIDATION_FAILED', { fields: r.fields });
   const fresh = (await ownVacancy(c, cur.id))!;
-  return c.json({ vacancy: toVacancyDto(fresh), matches: result ?? 0, queued: queued && result !== null });
+  return c.json({ vacancy: toVacancyDto(fresh), matches: r.matches, queued: r.queued });
+});
+
+/**
+ * "Publish after approval": a company that is still waiting for the admin marks a draft; approving the company publishes it (publishRequestedDrafts).
+ * An approved company publishes directly instead (409 here, so the client never thinks a request is pending). DELETE withdraws the request.
+ */
+vacancies.post('/:id/publish-request', requireAuth('employer'), async (c) => {
+  const cur = await ownVacancy(c, c.req.param('id'));
+  if (!cur) return apiError(c, 404, 'NOT_FOUND');
+  if (cur.status !== 'draft') return apiError(c, 409, cur.status === 'closed' ? 'VACANCY_CLOSED' : 'VACANCY_NOT_DRAFT');
+  if (cur.company_review === 'rejected') return apiError(c, 403, 'EMPLOYER_REJECTED');
+  if (cur.company_review === 'approved' && c.var.auth!.user.status === 'active') return apiError(c, 409, 'EMPLOYER_ALREADY_APPROVED');
+  await c.var.db.query(`UPDATE vacancies SET publish_requested_at = COALESCE(publish_requested_at, $2) WHERE id = $1 AND status = 'draft'`, [cur.id, iso()]);
+  return c.json({ vacancy: toVacancyDto((await ownVacancy(c, cur.id))!) });
+});
+vacancies.delete('/:id/publish-request', requireAuth('employer'), async (c) => {
+  const cur = await ownVacancy(c, c.req.param('id'));
+  if (!cur) return apiError(c, 404, 'NOT_FOUND');
+  await c.var.db.query('UPDATE vacancies SET publish_requested_at = NULL WHERE id = $1', [cur.id]);
+  return c.json({ vacancy: toVacancyDto((await ownVacancy(c, cur.id))!) });
 });
 
 vacancies.post('/:id/close', requireAuth('employer'), async (c) => {
@@ -186,7 +168,7 @@ vacancies.get('/', requireAuth(), async (c) => {
   if (!p.ok) return apiError(c, 400, 'SEARCH_INVALID');
   const f = p.value;
   const params: unknown[] = [];
-  const where = [`v.status = 'published'`, `(v.deadline IS NULL OR v.deadline >= ${SQL_TODAY})`];
+  const where = [STUDENT_VISIBLE];
   const add = (sql: string, val: unknown) => { params.push(val); where.push(sql.replace('$#', `$${params.length}`)); };
   if (f.q) { params.push(`%${esc(f.q.toLocaleLowerCase())}%`); const i = params.length; where.push(`(v.title_lc LIKE $${i} ESCAPE '\\' OR v.description_lc LIKE $${i} ESCAPE '\\' OR ep.company_lc LIKE $${i} ESCAPE '\\' OR EXISTS (SELECT 1 FROM vacancy_skills vs JOIN skills s ON s.id = vs.skill_id WHERE vs.vacancy_id = v.id AND s.name_key LIKE $${i} ESCAPE '\\'))`); }
   if (f.industry) add('v.industry_key = $#', f.industry);
@@ -213,7 +195,8 @@ vacancies.get('/:id', requireAuth(), async (c) => {
   const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1`, [id]);
   const v = rows[0];
   const a = c.var.auth!.user;
-  if (!v || (v.status === 'draft' && v.employer_id !== a.id) || (v.status !== 'published' && a.role === 'student')) return apiError(c, 404, 'NOT_FOUND');
+  // students: published vacancies of approved companies only (a past deadline still opens, read-only); admins see everything (moderation)
+  if (!v || (v.status === 'draft' && v.employer_id !== a.id && a.role !== 'admin') || (a.role === 'student' && (v.status !== 'published' || !companyApproved(v)))) return apiError(c, 404, 'NOT_FOUND');
   const student = a.role === 'student' ? await loadStudentSignal(c.var.db, a.id) : null;
   if (a.role === 'student' && v.status === 'published') {
     // one row per student per day; analytics must never break the page, so failures are swallowed
@@ -261,9 +244,9 @@ vacancies.get('/:id/similar', requireAuth('student', 'employer'), async (c) => {
   const a = c.var.auth!.user;
   const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1`, [id]);
   const base = rows[0];
-  if (!base || (base.status !== 'published' && base.employer_id !== a.id)) return apiError(c, 404, 'NOT_FOUND');
+  if (!base || ((base.status !== 'published' || !companyApproved(base)) && base.employer_id !== a.id)) return apiError(c, 404, 'NOT_FOUND');
   const pool = (await c.var.db.query<VacancyRow>(
-    `${VACANCY_SELECT} WHERE v.status = 'published' AND v.id <> $1 AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY}) ORDER BY v.published_at DESC LIMIT 500`, [id])).rows;
+    `${VACANCY_SELECT} WHERE ${STUDENT_VISIBLE} AND v.id <> $1 ORDER BY v.published_at DESC LIMIT 500`, [id])).rows;
   const bs = { ...vacancySignal(base), kind: base.kind };
   const ranked = pool.map((v) => ({ v, score: vacancySimilarity(bs, { ...vacancySignal(v), kind: v.kind }) })).filter((x) => x.score >= 0.2)
     .sort((x, y) => y.score - x.score || x.v.id.localeCompare(y.v.id)).slice(0, 5);
@@ -275,7 +258,7 @@ vacancies.get('/:id/similar', requireAuth('student', 'employer'), async (c) => {
 vacancies.get('/:id/whatif', requireAuth('student'), async (c) => {
   const id = c.req.param('id');
   if (!UUID_RE.test(id)) return apiError(c, 404, 'NOT_FOUND');
-  const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1 AND v.status = 'published'`, [id]);
+  const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1 AND v.status = 'published' AND ep.review_status = 'approved'`, [id]);
   const v = rows[0];
   const s = await loadStudentSignal(c.var.db, c.var.auth!.user.id);
   if (!v || !s) return apiError(c, 404, 'NOT_FOUND');
@@ -342,7 +325,7 @@ vacancies.post('/:id/apply', requireAuth('student'), async (c) => {
   if (!v.ok) return apiError(c, 400, v.formError ?? 'VALIDATION_FAILED', { fields: v.fields });
   const { rows } = await c.var.db.query<VacancyRow & { expired: boolean }>(`${VACANCY_SELECT.replace('SELECT v.id', `SELECT (v.deadline IS NOT NULL AND v.deadline < ${SQL_TODAY}) AS expired, v.id`)} WHERE v.id = $1`, [id]);
   const vac = rows[0];
-  if (!vac || vac.status === 'draft') return apiError(c, 404, 'NOT_FOUND');
+  if (!vac || vac.status === 'draft' || !companyApproved(vac)) return apiError(c, 404, 'NOT_FOUND');
   if (vac.status === 'closed' || vac.expired) return apiError(c, 409, 'VACANCY_CLOSED');
   const sid = c.var.auth!.user.id;
   const s = await loadStudentSignal(c.var.db, sid);

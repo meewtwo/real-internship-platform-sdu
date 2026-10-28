@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, Download, History, Loader2, Plus, Printer, RefreshCw, Share2, Sparkles, Trash2, Wand2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, Download, History, Loader2, Plus, Printer, RefreshCw, Save, Share2, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
@@ -81,18 +81,31 @@ export function ResumeEditor() {
   const edit = (fn: (d: ResumeDoc) => void) => { setDoc((d) => { const n = structuredClone(d); fn(n); return n; }); touch(); };
   const editMeta = (patch: Partial<typeof meta>) => { setMeta((m) => ({ ...m, ...patch })); touch(); };
 
-  const save = useCallback(async () => {
-    const { doc: d, meta: m, version: v } = latest.current;
+  // The database is the only source of truth: "saved" is shown only after the server confirmed the write, never from local state.
+  const saving = useRef<Promise<void> | null>(null);
+  const save = useCallback(async (manual = false) => {
+    while (saving.current) await saving.current; // one write at a time (each needs the version the previous one returned)
+    const { doc: d, meta: m } = latest.current;
     const check = validateResumeDoc(d);
-    if (!check.ok || !m.title.trim()) { setStatus('invalid'); return; }
+    if (!check.ok || !m.title.trim()) { setStatus('invalid'); if (manual) toast(t('app:builder.saveInvalid'), 'error'); return; }
+    if (rev.current <= savedRev.current) { if (manual) toast(t('app:builder.savedToast')); return; }
     const myRev = rev.current;
     setStatus('saving');
-    try {
-      const r = await api<{ doc: DocDto }>('PUT', `/api/resume-docs/${id}`, { baseVersion: v, title: m.title.trim(), template: m.template, language: m.language, data: check.data });
-      setVersion(r.doc.version); savedRev.current = myRev;
-      setStatus(rev.current === myRev ? 'saved' : 'dirty');
-    } catch (e) { setStatus(e instanceof ApiError && e.code === 'RESUME_CONFLICT' ? 'conflict' : 'error'); }
-  }, [id]);
+    const run = (async () => {
+      try {
+        const r = await api<{ doc: DocDto }>('PUT', `/api/resume-docs/${id}`, { baseVersion: latest.current.version, title: m.title.trim(), template: m.template, language: m.language, data: check.data });
+        latest.current.version = r.doc.version; setVersion(r.doc.version); savedRev.current = myRev;
+        setStatus(rev.current === myRev ? 'saved' : 'dirty');
+        if (manual) toast(t('app:builder.savedToast'));
+      } catch (e) {
+        const conflict = e instanceof ApiError && e.code === 'RESUME_CONFLICT';
+        setStatus(conflict ? 'conflict' : 'error');
+        if (!conflict) toast(t('app:builder.saveFailed', { reason: apiErrText(t, e) }), 'error'); // a conflict has its own banner with "Reload"
+      }
+    })();
+    saving.current = run;
+    try { await run; } finally { if (saving.current === run) saving.current = null; }
+  }, [id, t, toast]);
 
   // debounced autosave (only valid documents are sent; the server validates again)
   const [tick, setTick] = useState(0);
@@ -102,6 +115,10 @@ export function ResumeEditor() {
     const h = setTimeout(() => { if (rev.current > savedRev.current) void save(); }, 1200);
     return () => clearTimeout(h);
   }, [tick, save, status]);
+  // leaving the editor inside the app (a link, a tab) used to drop edits still waiting for the debounce: write them now instead
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => () => { if (ready.current && rev.current > savedRev.current) void saveRef.current(); }, []);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => { if (rev.current > savedRev.current) { e.preventDefault(); e.returnValue = ''; } };
     window.addEventListener('beforeunload', guard);
@@ -141,7 +158,7 @@ export function ResumeEditor() {
   return (
     <div className="mx-auto max-w-6xl">
       <div className="no-print">
-        <Link to="/resume/builder" className="mb-3 inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:underline"><ArrowLeft size={14} aria-hidden />{t('app:builder.back')}</Link>
+        <Link to="/resume/builder" onClick={(ev) => { if (rev.current > savedRev.current && invalid && !window.confirm(t('app:builder.leaveInvalid'))) ev.preventDefault(); }} className="mb-3 inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:underline"><ArrowLeft size={14} aria-hidden />{t('app:builder.back')}</Link>
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <label className="block min-w-[200px] flex-1 text-[12px] font-bold text-navy">{t('app:builder.name')}<input value={meta.title} maxLength={80} aria-invalid={!!metaErr} onChange={(ev) => editMeta({ title: ev.target.value })} className={`${inp} mt-0.5 !h-10 text-[16px] font-extrabold`} /></label>
           <label className="block text-[12px] font-bold text-navy">{t('app:builder.template.label')}
@@ -149,6 +166,9 @@ export function ResumeEditor() {
           <label className="block text-[12px] font-bold text-navy">{t('app:builder.docLanguage')}
             <select value={meta.language} onChange={(ev) => editMeta({ language: ev.target.value as ResumeLang })} className={`${inp} mt-0.5 !h-10`}>{RESUME_LANGS.map((k) => <option key={k} value={k}>{k.toUpperCase()}</option>)}</select></label>
           <p role="status" aria-live="polite" className={`rounded-full px-3 py-1 text-[12px] font-bold ${statusCls}`}>{status === 'saving' && <Loader2 size={12} className="mr-1 inline animate-spin" aria-hidden />}{t(`app:builder.status.${status}`)}</p>
+          <button type="button" onClick={() => void save(true)} disabled={status === 'saving' || status === 'saved' || status === 'conflict'} className={`${btnPrimary} !h-10`}>
+            {status === 'saving' ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Save size={15} aria-hidden />}{t('app:builder.save')}
+          </button>
         </div>
         {status === 'conflict' && (
           <p role="alert" className="mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-danger/10 px-3 py-2 text-[13px] font-semibold text-danger-text">{errText(t, 'RESUME_CONFLICT')}

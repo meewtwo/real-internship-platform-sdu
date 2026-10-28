@@ -4,7 +4,7 @@ import { asDbError, type Db, type Queryable } from '../lib/db';
 import { iso } from '../lib/sql';
 import { randomToken, sha256Hex } from '../lib/crypto';
 import { NOTIFY_KINDS_TELEGRAM, plainNotification } from './emailText';
-import { SQL_TODAY } from './matching';
+import { STUDENT_VISIBLE } from './matching';
 
 export const telegramConfigured = (env: Env) => !!env.TELEGRAM_BOT_TOKEN && !!env.TELEGRAM_WEBHOOK_SECRET;
 const LINK_TTL_MIN = 15;
@@ -101,7 +101,7 @@ export async function handleUpdate(db: Db, env: Env, base: string, raw: unknown)
     }
     const rows = (await db.query<{ id: string; title: string; company: string; percent: number }>(
       `SELECT v.id, v.title, ep.company_name AS company, m.percent FROM matches m JOIN vacancies v ON v.id = m.vacancy_id JOIN employer_profiles ep ON ep.user_id = v.employer_id
-       WHERE m.student_id = $1 AND m.percent >= 60 AND v.status = 'published' AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY})
+       WHERE m.student_id = $1 AND m.percent >= 60 AND ${STUDENT_VISIBLE}
          AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.student_id = $1 AND a.status <> 'withdrawn')
        ORDER BY m.percent DESC, v.id LIMIT 5`, [link.user_id])).rows;
     await reply(rows.length ? `${T.matchesHead}\n${rows.map((r) => `• ${r.percent}% — ${r.title}, ${r.company}\n${base}/vacancies/${r.id}`).join('\n')}` : T.noMatches);

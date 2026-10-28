@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { validateEmployerProfile, validateStudentProfile } from '@sdu/shared';
+import { INDUSTRY_KEYS, validateEmployerProfile, validateStudentProfile } from '@sdu/shared';
 import { asDbError, type Queryable } from '../lib/db';
 import { apiError, readJson, type AppEnv } from '../lib/http';
 import { loadAuth } from '../services/sessions';
@@ -121,6 +121,19 @@ profile.get('/skills', async (c) => {
     [`%${esc}%`, `${esc}%`],
   );
   return c.json({ skills: rows.map((r) => r.name) });
+});
+
+/**
+ * Skills suggested for an industry (vacancy form), from `industry_skills` (same vocabulary as student skills).
+ * "Other" and an empty industry get the 'general' set of popular skills.
+ */
+profile.get('/skills/suggested', async (c) => {
+  const raw = c.req.query('industry') ?? '';
+  if (raw !== '' && !(INDUSTRY_KEYS as readonly string[]).includes(raw)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { industry: 'VALIDATION_FAILED' } });
+  const industry = raw === '' || raw === 'other' ? 'general' : raw;
+  const { rows } = await c.var.db.query<{ name: string }>(
+    'SELECT s.name FROM industry_skills i JOIN skills s ON s.id = i.skill_id WHERE i.industry_key = $1 ORDER BY i.sort_order, s.name LIMIT 30', [industry]);
+  return c.json({ industry, skills: rows.map((r) => r.name) });
 });
 
 /**

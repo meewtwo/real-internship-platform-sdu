@@ -89,7 +89,7 @@ Then add your custom domain in the Cloudflare dashboard (Workers → your worker
 * `public/_headers` (CSP, HSTS, X-Frame-Options …) is applied by Workers Assets; API responses set their own security headers.
 * The Worker is verified end to end with `wrangler dev --local` (miniflare's real D1 engine) via `scripts/smoke.ts` — 34 journey steps — plus the unit/API suites on SQLite and the Playwright suite.
 * **D1 has no interactive transactions or row locks**, so every guard lives INSIDE one statement (`INSERT … SELECT … WHERE count < n`, `UPDATE … WHERE version = ?`, compare-and-set claims) and multi-step writes use `db.batch([...])` (atomic, no reads in between). Rate limits are one UPSERT; the client IP comes from `CF-Connecting-IP`.
-* D1 limits worth knowing: 2 MB per row (so without R2 the CV upload cap is 1 MB), 100 bound parameters and 100 KB SQL per statement, 10 GB per database (free: 500 MB).
+* D1 limits worth knowing: 2 MB per row (so without R2 a CV over 1 MB is stored in parts in `cv_chunks`; the cap stays 2 MiB), 100 bound parameters and 100 KB SQL per statement, 10 GB per database (free: 500 MB).
 * SQLite has no regex operator and only ASCII case-folding: shape rules use `GLOB`/`LIKE` (the API validators remain the source of truth) and Cyrillic-safe search uses `title_lc` / `description_lc` / `company_lc` / `skills.name_key`, which the application fills.
 
 ## Extra API (all JSON, CSRF + session cookie like the rest)
@@ -153,7 +153,7 @@ Publishing a vacancy computes matches for all active students (capped at 5 000),
 ## Assumptions and deliberate deviations (please read)
 
 0. **Workers CPU:** parsing a PDF/DOCX takes tens of milliseconds of CPU — use the Workers *Paid* plan (or move the upload route to Node); the free plan's 10 ms CPU limit can reject it.
-   CVs are stored in the database (`BLOB`, ≤ 1 MB on D1 because of the 2 MB row limit) unless an R2 bucket is bound (then ≤ 2 MiB). Course links are a curated catalogue (`courses` table) with a Coursera search fallback.
+   CVs (≤ 2 MiB) are stored in the database unless an R2 bucket is bound: `cvs.content` (`BLOB`) when the file is ≤ 1 MB, otherwise ≤ 1 MB parts in `cv_chunks` (D1's 2 MB row limit). Course links are a curated catalogue (`courses` table) with a Coursera search fallback.
 
 1. **Cloudflare Workers forced three substitutions** of the suggested stack: *Prisma → plain parameterised SQL with SQL migrations*
    (no string-built SQL anywhere), *argon2/bcrypt → PBKDF2-SHA-256 via WebCrypto* (Workers caps PBKDF2 at 100 000 iterations; native argon2 cannot run there),

@@ -99,7 +99,8 @@ describe('vacancies (US-5)', () => {
     const { client: student } = await makeStudent();
     expect((await student.get(`/api/vacancies/${id}`)).status).toBe(404);
     expect((await student.get('/api/vacancies')).body.total).toBe(0);
-    await sql(`UPDATE users SET status = 'active'`);
+    const admin = await makeAdmin();
+    expect((await admin.post(`/api/admin/employers/${pending.id}/approve`)).status).toBe(200);
     await pending.client.post('/api/auth/logout');
     await pending.client.post('/api/auth/login', { role: 'employer', identifier: pending.payload.email, password: pending.payload.password });
     const ok = await pending.client.post(`/api/vacancies/${id}/publish`);
@@ -201,7 +202,7 @@ describe('search, filters and match % (US-6, US-7)', () => {
   });
   it('expired deadline hides the vacancy from search and blocks applying', async () => {
     const e = await makeEmployer();
-    const v = await publish(e, { deadline: gradIn(0) + '-28' });
+    const v = await publish(e, { deadline: gradIn(1) + '-28' }); // next month: the 28th of THIS month is already past from the 29th on
     await sql(`UPDATE vacancies SET deadline = current_date - 1`);
     const { client: s } = await makeStudent();
     expect((await s.get('/api/vacancies')).body.total).toBe(0);

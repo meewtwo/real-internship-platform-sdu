@@ -2,13 +2,15 @@ import { Hono } from 'hono';
 import { apiError, UUID_RE, type AppEnv, type Ctx } from '../lib/http';
 import { loadAuth } from '../services/sessions';
 import { audit, auditIf } from '../services/audit';
-import { iso, uniqueStamp } from '../lib/sql';
+import { iso, TODAY, uniqueStamp } from '../lib/sql';
+import { toVacancyDto, VACANCY_SELECT, type VacancyRow } from '../services/matching';
 import { appBase } from '../services/emailLinks';
 import { flushInstantEmails } from '../services/emailQueue';
 import { runDigest } from '../services/digest';
 import { backfillEmbeddings, embeddingsEnabled } from '../services/embeddings';
 import { telegramConfigured, tgSetWebhook } from '../services/telegram';
 import { notifyIf } from '../services/notify';
+import { publishRequestedDrafts } from '../services/publish';
 
 export const admin = new Hono<AppEnv>();
 
@@ -26,14 +28,18 @@ export const REJECTION_REASON_MAX = 500;
 // verified accounts only (an employer that has not confirmed the e-mail yet is not up for review)
 const VERIFIED = `u.role = 'employer' AND u.status <> 'unverified'`;
 
+const COMPANY_COLS = `u.id, u.email, u.phone, u.status, u.created_at AS "createdAt", ep.company_name AS "companyName", ep.bin, ep.industry_key AS industry, ep.industry_other AS "industryOther",
+  ep.size_key AS size, ep.city_key AS city, ep.city_other AS "cityOther", ep.contact_name AS "contactName", ep.contact_surname AS "contactSurname", ep.position,
+  ep.website, ep.description, ep.review_status AS "reviewStatus", ep.rejection_reason AS "rejectionReason", ep.reviewed_at AS "reviewedAt", rv.email AS "reviewedBy",
+  (SELECT count(*) FROM vacancies v WHERE v.employer_id = u.id) AS "vacancyCount",
+  (SELECT count(*) FROM vacancies v WHERE v.employer_id = u.id AND v.status = 'published') AS "publishedCount"`;
+
 /** Companies by review status (?status=pending|approved|rejected, default pending) + per-status counts for the tabs. */
 admin.get('/employers', async (c) => {
   const status = (c.req.query('status') ?? 'pending') as ReviewStatus;
   if (!REVIEW_STATUSES.includes(status)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { status: 'VALIDATION_FAILED' } });
   const { rows } = await c.var.db.query(
-    `SELECT u.id, u.email, u.phone, u.status, u.created_at AS "createdAt", ep.company_name AS "companyName", ep.bin, ep.industry_key AS industry, ep.industry_other AS "industryOther",
-            ep.size_key AS size, ep.city_key AS city, ep.city_other AS "cityOther", ep.contact_name AS "contactName", ep.contact_surname AS "contactSurname", ep.position,
-            ep.website, ep.description, ep.review_status AS "reviewStatus", ep.rejection_reason AS "rejectionReason", ep.reviewed_at AS "reviewedAt", rv.email AS "reviewedBy"
+    `SELECT ${COMPANY_COLS}
      FROM users u JOIN employer_profiles ep ON ep.user_id = u.id LEFT JOIN users rv ON rv.id = ep.reviewed_by
      WHERE ${VERIFIED} AND ep.review_status = $1 ORDER BY ${status === 'pending' ? 'u.created_at' : 'ep.reviewed_at DESC'} LIMIT 200`,
     [status],
@@ -42,6 +48,44 @@ admin.get('/employers', async (c) => {
     `SELECT count(*) FILTER (WHERE ep.review_status = 'pending') AS pending, count(*) FILTER (WHERE ep.review_status = 'approved') AS approved,
             count(*) FILTER (WHERE ep.review_status = 'rejected') AS rejected FROM users u JOIN employer_profiles ep ON ep.user_id = u.id WHERE ${VERIFIED}`)).rows[0];
   return c.json({ employers: rows, counts });
+});
+
+export const ADMIN_VACANCY_STATUSES = ['draft', 'published', 'closed', 'expired'] as const;
+const VACANCY_PAGE = 20;
+/**
+ * One company with ALL its vacancies, drafts included (admins only — this router checks the role on every request; students keep seeing only
+ * STUDENT_VISIBLE vacancies and employers only their own). ?status=draft|published|closed|expired (expired = published, deadline passed),
+ * ?sort=newest|oldest (creation date), ?page=1…; counts per status for the filter.
+ */
+admin.get('/employers/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!UUID_RE.test(id)) return apiError(c, 404, 'NOT_FOUND');
+  const status = c.req.query('status') ?? '', sort = c.req.query('sort') ?? 'newest', pageRaw = c.req.query('page') ?? '1';
+  if (status !== '' && !(ADMIN_VACANCY_STATUSES as readonly string[]).includes(status)) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { status: 'VALIDATION_FAILED' } });
+  if (sort !== 'newest' && sort !== 'oldest') return apiError(c, 400, 'VALIDATION_FAILED', { fields: { sort: 'VALIDATION_FAILED' } });
+  if (!/^[0-9]{1,4}$/.test(pageRaw) || Number(pageRaw) < 1) return apiError(c, 400, 'VALIDATION_FAILED', { fields: { page: 'VALIDATION_FAILED' } });
+  const page = Number(pageRaw);
+  const company = (await c.var.db.query(
+    `SELECT ${COMPANY_COLS} FROM users u JOIN employer_profiles ep ON ep.user_id = u.id LEFT JOIN users rv ON rv.id = ep.reviewed_by WHERE u.id = $1 AND u.role = 'employer'`, [id])).rows[0];
+  if (!company) return apiError(c, 404, 'NOT_FOUND');
+  const expired = `(v.deadline IS NOT NULL AND v.deadline < ${TODAY})`;
+  const dir = sort === 'oldest' ? 'ASC' : 'DESC';
+  const params: unknown[] = [id, VACANCY_PAGE, (page - 1) * VACANCY_PAGE];
+  let filter = '';
+  if (status === 'expired') filter = `AND v.status = 'published' AND ${expired}`;
+  else if (status === 'published') filter = `AND v.status = 'published' AND NOT ${expired}`;
+  else if (status !== '') { params.push(status); filter = 'AND v.status = $4'; }
+  // (the alias is not "expired": the db layer turns a column of that name into a boolean)
+  const n = (await c.var.db.query<{ all: number; draft: number; published: number; closed: number; expired_n: number }>(
+    `SELECT count(*) AS "all", count(*) FILTER (WHERE v.status = 'draft') AS draft, count(*) FILTER (WHERE v.status = 'published' AND NOT ${expired}) AS published,
+            count(*) FILTER (WHERE v.status = 'closed') AS closed, count(*) FILTER (WHERE v.status = 'published' AND ${expired}) AS expired_n
+     FROM vacancies v WHERE v.employer_id = $1`, [id])).rows[0];
+  const counts: Record<string, number> = { all: n.all, draft: n.draft, published: n.published, closed: n.closed, expired: n.expired_n };
+  const { rows } = await c.var.db.query<VacancyRow>(
+    `${VACANCY_SELECT.replace('FROM vacancies v', ", (SELECT count(*) FROM applications a WHERE a.vacancy_id = v.id AND a.status <> 'withdrawn') AS applicants FROM vacancies v")}
+     WHERE v.employer_id = $1 ${filter} ORDER BY v.created_at ${dir}, v.id ${dir} LIMIT $2 OFFSET $3`, params);
+  const total = status === '' ? counts.all : counts[status];
+  return c.json({ company, vacancies: rows.map(toVacancyDto), counts, total, page, pageSize: VACANCY_PAGE });
 });
 
 /**
@@ -83,7 +127,13 @@ async function review(c: Ctx, to: 'approved' | 'rejected') {
     auditIf('SELECT 1 FROM users WHERE id = $7 AND updated_at = $8', pp, { id: admin.id, role: 'admin' }, to === 'approved' ? 'employer.approve' : 'employer.reject', { type: 'user', id }, to === 'rejected' ? { withReason: !!reason } : {}),
   ]);
   if (rs[0].rowCount === 0) return apiError(c, 404, 'NOT_FOUND');
-  return c.json({ ok: true, status: to === 'approved' ? 'active' : 'pending', reviewStatus: to, rejectionReason: reason });
+  // drafts the employer asked to publish while waiting go live now (the cron sweep retries anything that fails here)
+  let published = 0;
+  if (to === 'approved') {
+    try { published = await publishRequestedDrafts(c.var.db, c.env, id, { id: admin.id, role: 'admin' }); }
+    catch (e) { console.error(JSON.stringify({ level: 'error', msg: 'publish after approval failed', detail: (e as Error).message })); }
+  }
+  return c.json({ ok: true, status: to === 'approved' ? 'active' : 'pending', reviewStatus: to, rejectionReason: reason, published });
 }
 admin.post('/employers/:id/approve', (c) => review(c, 'approved'));
 admin.post('/employers/:id/reject', (c) => review(c, 'rejected'));

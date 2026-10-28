@@ -7,7 +7,7 @@ import { rateLimit } from '../lib/ratelimit';
 import { addStudentSkills } from '../services/skills';
 import { iso } from '../lib/sql';
 import { afterResponse, embedStudent } from '../services/embeddings';
-import { loadCvBytes, removeCvObjects, storeCvBytes } from '../services/cvStore';
+import { cvChunkStmts, loadCvBytes, removeCvObjects, storeCvBytes } from '../services/cvStore';
 
 export const cv = new Hono<AppEnv>();
 cv.use('*', requireAuth('student'));
@@ -30,8 +30,8 @@ cv.post('/', async (c) => {
   let file: unknown;
   try { file = (await c.req.parseBody())['file']; } catch { return apiError(c, 400, 'CV_MISSING_FILE'); }
   if (!(file instanceof File) || file.size === 0) return apiError(c, 400, 'CV_MISSING_FILE');
-  // D1 caps a row at 2 MB: without R2 the file is stored in the row, so the cap is 1 MB there
-  if (file.size > (c.env.DB && !c.env.CV_BUCKET ? 1_000_000 : MAX_CV_BYTES)) return apiError(c, 413, 'CV_TOO_LARGE');
+  // the same 2 MB everywhere: without R2, a file too big for one D1 row is stored in parts (cv_chunks)
+  if (file.size > MAX_CV_BYTES) return apiError(c, 413, 'CV_TOO_LARGE');
   const filename = safeFilename(file.name);
   if (!filename) return apiError(c, 400, 'CV_TYPE_INVALID');
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -45,13 +45,14 @@ cv.post('/', async (c) => {
   const stored = await storeCvBytes(c.env, a.user.id, bytes);
   const old = (await c.var.db.query<{ storage_key: string | null }>('SELECT storage_key FROM cvs WHERE user_id = $1', [a.user.id])).rows[0]?.storage_key;
   try {
-    await c.var.db.query(
-      `INSERT INTO cvs (user_id, filename, mime, size_bytes, content, storage_key, text_content, extracted_skills, experience_years, experience_items, uploaded_at)
+    // one batch: the row and its parts (or the removal of an older CV's parts) commit together
+    await c.var.db.batch([{
+      sql: `INSERT INTO cvs (user_id, filename, mime, size_bytes, content, storage_key, text_content, extracted_skills, experience_years, experience_items, uploaded_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (user_id) DO UPDATE SET filename = $2, mime = $3, size_bytes = $4, content = $5, storage_key = $6, text_content = $7, extracted_skills = $8,
          experience_years = $9, experience_items = $10, uploaded_at = $11`,
-      [a.user.id, filename, parsed.mime, bytes.length, stored.content, stored.key, parsed.text, JSON.stringify(skills), exp.years, JSON.stringify(exp.items), iso()],
-    );
+      params: [a.user.id, filename, parsed.mime, bytes.length, stored.content, stored.key, parsed.text, JSON.stringify(skills), exp.years, JSON.stringify(exp.items), iso()],
+    }, ...cvChunkStmts(a.user.id, stored)]);
   } catch (e) { await removeCvObjects(c.env, [stored.key]); throw e; } // never leave an orphaned object behind a failed write
   if (old && old !== stored.key) await removeCvObjects(c.env, [old]);
   await afterResponse(c, async (db) => { await embedStudent(db, c.env, a.user.id); });
@@ -60,9 +61,10 @@ cv.post('/', async (c) => {
 });
 
 cv.get('/file', async (c) => {
-  const { rows } = await c.var.db.query<{ filename: string; mime: string; content: Uint8Array | null; storage_key: string | null }>('SELECT filename, mime, content, storage_key FROM cvs WHERE user_id = $1', [c.var.auth!.user.id]);
+  const { rows } = await c.var.db.query<{ user_id: string; filename: string; mime: string; size_bytes: number; content: Uint8Array | null; storage_key: string | null }>(
+    'SELECT user_id, filename, mime, size_bytes, content, storage_key FROM cvs WHERE user_id = $1', [c.var.auth!.user.id]);
   if (!rows[0]) return apiError(c, 404, 'CV_NOT_FOUND');
-  const bytes = await loadCvBytes(c.env, rows[0]);
+  const bytes = await loadCvBytes(c.env, c.var.db, rows[0]);
   return bytes ? cvResponse({ ...rows[0], content: bytes }) : apiError(c, 404, 'CV_NOT_FOUND');
 });
 

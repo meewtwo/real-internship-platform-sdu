@@ -66,7 +66,7 @@ export interface Env {
   TURNSTILE_SITEKEY?: string;
   /** Cloudflare Email Sending binding (`[[send_email]] name = "EMAIL"`): the default mail transport on Workers when bound. */
   EMAIL?: { send(message: { from: string | { email: string; name?: string }; to: string | string[]; subject: string; text?: string; html?: string; headers?: Record<string, string> }): Promise<unknown> };
-  /** R2 bucket for CV files. Unbound → CVs stay in the database (D1 limits a row to 2 MB, so the upload cap drops to 1 MB). */
+  /** R2 bucket for CV files. Unbound → CVs stay in the database (files over 1 MB are split across `cv_chunks` rows, since D1 limits a row to 2 MB). */
   CV_BUCKET?: BucketLike;
   /** Cloudflare Queue producer for background jobs. Unbound → jobs run inline (default). */
   JOBS?: QueueLike;

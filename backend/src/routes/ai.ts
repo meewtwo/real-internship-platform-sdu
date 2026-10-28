@@ -9,7 +9,7 @@ import {
 } from '../services/aiLogic';
 import { audit, auditStmt } from '../services/audit';
 import { afterResponse, embedStudent } from '../services/embeddings';
-import { loadStudentSignal, SQL_TODAY, VACANCY_SELECT, vacancySignal, type VacancyRow } from '../services/matching';
+import { loadStudentSignal, STUDENT_VISIBLE, VACANCY_SELECT, vacancySignal, type VacancyRow } from '../services/matching';
 import { addStudentSkills } from '../services/skills';
 import { iso } from '../lib/sql';
 
@@ -125,7 +125,7 @@ ai.post('/vacancy/parse', requireAuth('employer'), async (c) => {
 // ───────────────────────── explanations ─────────────────────────
 export async function publishedVacancy(c: Ctx, id: string): Promise<VacancyRow | null> {
   if (!UUID_RE.test(id)) return null;
-  return (await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1 AND v.status = 'published' AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY})`, [id])).rows[0] ?? null;
+  return (await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.id = $1 AND ${STUDENT_VISIBLE}`, [id])).rows[0] ?? null;
 }
 export const vacancyFacts = (v: VacancyRow) => ({ title: v.title, company: v.company_name, kind: v.kind, industry: v.industry_key, workFormat: v.work_format, city: v.city_key, requiredSkills: v.skills, minGpa: v.min_gpa });
 

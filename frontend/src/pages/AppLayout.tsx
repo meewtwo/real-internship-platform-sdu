@@ -29,7 +29,7 @@ const NAV: Record<Role, Item[]> = {
   ],
   admin: [
     { key: 'dashboard', to: '/dashboard', matches: ['/dashboard'] },
-    { key: 'companies', to: '/admin/companies', matches: ['/admin/companies'] },
+    { key: 'companies', to: '/admin/companies', matches: ['/admin/companies', '/admin/vacancies'] },
     { key: 'analytics', to: '/analytics', matches: ['/analytics'] },
   ],
 };

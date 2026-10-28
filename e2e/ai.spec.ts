@@ -8,6 +8,7 @@ async function csrf(req: APIRequestContext) { return (await (await req.get('/api
 async function activeEmployerWithVacancy(req: APIRequestContext) {
   const e = await apiEmployer(req);
   await dbQuery(`UPDATE users SET status = 'active' WHERE email = $1`, [e.email]);
+  await dbQuery(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [e.email]); // approved like the admin flow does (publishing needs both)
   const login = await req.post('/api/auth/login', { data: { role: 'employer', identifier: e.email, password: PASSWORD }, headers: { 'x-csrf-token': await csrf(req) } });
   expect(login.ok()).toBeTruthy();
   const v = await req.post('/api/vacancies', { headers: { 'x-csrf-token': await csrf(req) }, data: { title: 'Python SQL Data Analyst Intern', description: 'Analyse data with Python and SQL and build dashboards for our analytics team.', kind: 'internship', industry: 'it_software', city: 'almaty', workFormat: 'onsite', requiredSkills: ['Python', 'SQL'] } });
@@ -82,6 +83,7 @@ test.describe('AI features (rule-based mode, no provider configured)', () => {
     const ctx = await browser.newContext({ baseURL: process.env.E2E_BASE ?? 'http://127.0.0.1:4173', viewport: { width: 1366, height: 1000 } });
     const e = await apiEmployer(ctx.request);
     await dbQuery(`UPDATE users SET status = 'active' WHERE email = $1`, [e.email]);
+    await dbQuery(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [e.email]); // approved like the admin flow does (publishing needs both)
     const p = await ctx.newPage();
     await uiLogin(p, 'employer', e.email);
     await p.goto('/vacancies/new');

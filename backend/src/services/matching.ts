@@ -31,14 +31,14 @@ export async function loadStudentSignal(q: Queryable, userId: string): Promise<S
 
 export interface VacancyRow {
   id: string; employer_id: string; title: string; description: string; kind: string; industry_key: IndustryKey; industry_other: string | null; city_key: CityKey; city_other: string | null;
-  work_format: WorkFormat; min_gpa: string | null; deadline: string | null; salary_min: number | null; salary_max: number | null; status: string; published_at: string | null; created_at: string;
-  skills: string[]; company_name: string; company_website: string | null; applicants?: number; emb?: Uint8Array | null;
+  work_format: WorkFormat; min_gpa: string | null; deadline: string | null; salary_min: number | null; salary_max: number | null; status: string; published_at: string | null; created_at: string; publish_requested_at: string | null;
+  skills: string[]; company_name: string; company_website: string | null; company_review: string; applicants?: number; emb?: Uint8Array | null;
 }
 
 export const VACANCY_SELECT = `SELECT v.id, v.employer_id, v.title, v.description, v.kind, v.industry_key, v.industry_other, v.city_key, v.city_other, v.work_format, v.min_gpa AS min_gpa,
-  v.deadline AS deadline, v.salary_min, v.salary_max, v.status, v.published_at, v.created_at,
+  v.deadline AS deadline, v.salary_min, v.salary_max, v.status, v.published_at, v.created_at, v.publish_requested_at,
   COALESCE((SELECT json_group_array(name) FROM (SELECT s.name AS name FROM vacancy_skills vs JOIN skills s ON s.id = vs.skill_id WHERE vs.vacancy_id = v.id ORDER BY s.name)), '[]') AS skills,
-  ep.company_name, ep.website AS company_website, ve.vec AS emb
+  ep.company_name, ep.website AS company_website, ep.review_status AS company_review, ve.vec AS emb
   FROM vacancies v JOIN employer_profiles ep ON ep.user_id = v.employer_id LEFT JOIN vacancy_embeddings ve ON ve.vacancy_id = v.id`;
 
 export const vacancySignal = (v: VacancyRow): VacancySignal => ({
@@ -49,11 +49,24 @@ export const vacancySignal = (v: VacancyRow): VacancySignal => ({
 export const toVacancyDto = (v: VacancyRow) => ({
   id: v.id, title: v.title, description: v.description, kind: v.kind, industry: v.industry_key, industryOther: v.industry_other, city: v.city_key, cityOther: v.city_other,
   workFormat: v.work_format, minGpa: v.min_gpa, deadline: v.deadline, salaryMin: v.salary_min, salaryMax: v.salary_max, status: v.status, publishedAt: v.published_at, createdAt: v.created_at,
-  requiredSkills: v.skills, company: { id: v.employer_id, name: v.company_name, website: v.company_website },
+  expired: v.deadline !== null && v.deadline < almatyToday(), publishRequested: v.publish_requested_at !== null, requiredSkills: v.skills, company: { id: v.employer_id, name: v.company_name, website: v.company_website },
   ...(v.applicants !== undefined ? { applicants: Number(v.applicants) } : {}),
 });
+
+/** Today's date in Asia/Almaty (UTC+5, no DST) as 'YYYY-MM-DD' — the code twin of SQL_TODAY. */
+export const almatyToday = () => new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
 
 export const matchFor = (s: StudentSignal | null, v: VacancyRow): MatchResult | null => (s ? matchScore(s, vacancySignal(v)) : null);
 
 /** Date in Asia/Almaty as YYYY-MM-DD, for "deadline not passed" checks. */
 export const SQL_TODAY = TODAY;
+
+/**
+ * THE rule for which vacancies students (and the public landing page) can see, used by every student-facing query so the employer, admin and
+ * student sides cannot drift apart: published (not a draft, not closed), its company approved by an admin, and the deadline not passed —
+ * the deadline day itself is still open (dates are compared as 'YYYY-MM-DD' in Asia/Almaty, not as timestamps). Seeded and employer-created
+ * vacancies are treated identically. Needs the `v` (vacancies) and `ep` (employer_profiles) aliases of VACANCY_SELECT.
+ */
+export const STUDENT_VISIBLE = `(v.status = 'published' AND ep.review_status = 'approved' AND (v.deadline IS NULL OR v.deadline >= ${TODAY}))`;
+/** The company half of STUDENT_VISIBLE, for a row already loaded by VACANCY_SELECT. */
+export const companyApproved = (v: Pick<VacancyRow, 'company_review'>) => v.company_review === 'approved';

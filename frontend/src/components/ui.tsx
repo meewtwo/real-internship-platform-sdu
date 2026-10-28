@@ -38,7 +38,7 @@ export function SkillChips({ matched = [], missing = [], neutral = [] }: { match
 const STATUS_COLOR: Record<string, string> = {
   applied: 'bg-brand-50 text-brand-dark ring-brand/30', viewed: 'bg-slate-100 text-slate-700 ring-slate-300', shortlisted: 'bg-lime/60 text-navy ring-lime',
   interview: 'bg-amber-100 text-amber-900 ring-amber-300', accepted: 'bg-ok/15 text-ok-text ring-ok/40', rejected: 'bg-danger/10 text-danger-text ring-danger/30', withdrawn: 'bg-slate-100 text-slate-500 ring-slate-300',
-  draft: 'bg-slate-100 text-slate-700 ring-slate-300', published: 'bg-ok/15 text-ok-text ring-ok/40', closed: 'bg-slate-200 text-slate-700 ring-slate-300',
+  draft: 'bg-slate-100 text-slate-700 ring-slate-300', published: 'bg-ok/15 text-ok-text ring-ok/40', closed: 'bg-slate-200 text-slate-700 ring-slate-300', expired: 'bg-amber-100 text-amber-900 ring-amber-300',
 };
 export function StatusBadge({ status, label }: { status: string; label: string }) {
   return <span className={`inline-block rounded-md px-2.5 py-0.5 text-[12px] font-bold ring-1 ${STATUS_COLOR[status] ?? STATUS_COLOR.viewed}`}>{label}</span>;

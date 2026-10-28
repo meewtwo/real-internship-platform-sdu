@@ -82,12 +82,12 @@ applications.get('/:id/cv', requireAuth('employer', 'student'), async (c) => {
   const id = c.req.param('id');
   if (!UUID_RE.test(id)) return apiError(c, 404, 'NOT_FOUND');
   const u = c.var.auth!.user;
-  const { rows } = await c.var.db.query<{ filename: string; mime: string; content: Uint8Array | null; storage_key: string | null }>(
-    `SELECT cv.filename, cv.mime, cv.content, cv.storage_key FROM applications a JOIN vacancies v ON v.id = a.vacancy_id JOIN cvs cv ON cv.user_id = a.student_id
+  const { rows } = await c.var.db.query<{ user_id: string; filename: string; mime: string; size_bytes: number; content: Uint8Array | null; storage_key: string | null }>(
+    `SELECT cv.user_id, cv.filename, cv.mime, cv.size_bytes, cv.content, cv.storage_key FROM applications a JOIN vacancies v ON v.id = a.vacancy_id JOIN cvs cv ON cv.user_id = a.student_id
      WHERE a.id = $1 AND a.status <> 'withdrawn' AND (v.employer_id = $2 OR a.student_id = $2)`,
     [id, u.id],
   );
   if (!rows[0]) return apiError(c, 404, 'CV_NOT_FOUND');
-  const bytes = await loadCvBytes(c.env, rows[0]);
+  const bytes = await loadCvBytes(c.env, c.var.db, rows[0]);
   return bytes ? cvResponse({ ...rows[0], content: bytes }) : apiError(c, 404, 'CV_NOT_FOUND');
 });

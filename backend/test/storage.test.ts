@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { strToU8, zipSync } from 'fflate';
 import { Db } from '../src/lib/db';
 import type { BucketLike } from '../src/env';
 import { processJob } from '../src/services/jobs';
@@ -108,6 +109,51 @@ describe('CV files in R2', () => {
     const s = await makeStudent();
     await s.client.upload('/api/cv', makePdf(CV), 'a.pdf', 'application/pdf');
     await expect(sql('UPDATE cvs SET content = NULL')).rejects.toThrow(/cvs_storage_chk/);
+  });
+});
+
+describe('large CVs without R2 (stored in parts in the database)', () => {
+  /** A real DOCX of ~1.6 MB: the text plus an incompressible "photo", stored uncompressed so the size is what D1 has to hold. */
+  const bigDocx = (lines: string[], bytes = 1_600_000) => {
+    const photo = new Uint8Array(bytes);
+    for (let i = 0; i < bytes; i += 65536) crypto.getRandomValues(photo.subarray(i, Math.min(i + 65536, bytes)));
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${lines.map((l) => `<w:p><w:r><w:t>${l}</w:t></w:r></w:p>`).join('')}</w:body></w:document>`;
+    return zipSync({ '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'), 'word/document.xml': strToU8(xml), 'word/media/image1.png': [photo, { level: 0 }] });
+  };
+  const chunks = () => sql<{ seq: number; len: number }>('SELECT seq, length(data) AS len FROM cv_chunks ORDER BY seq');
+
+  it('a 1–2 MB file is accepted, split into ≤ 1 MB parts, and downloaded byte-identical by the student and the employer', async () => {
+    const emp = await makeEmployer(), s = await makeStudent();
+    const docx = bigDocx(CV);
+    expect(docx.length).toBeGreaterThan(1_000_000);
+    const up = await s.client.upload('/api/cv', docx, 'cv.docx');
+    expect(up.status).toBe(201);
+    expect(up.body.cv).toMatchObject({ size: docx.length, skills: ['Python', 'SQL'] });
+    expect(await cvRow()).toMatchObject({ content: null, storage_key: 'd1-chunks', size_bytes: docx.length });
+    expect((await chunks()).map((c) => c.len)).toEqual([1_000_000, docx.length - 1_000_000]);
+    expect(sameBytes((await s.client.download('/api/cv/file')).bytes, docx)).toBe(true);
+    const v = (await emp.client.post('/api/vacancies', vacancyPayload())).body.vacancy.id;
+    await emp.client.post(`/api/vacancies/${v}/publish`);
+    const appId = (await s.client.post(`/api/vacancies/${v}/apply`)).body.application.id;
+    expect((await emp.client.get(`/api/vacancies/${v}/applicants`)).body.applicants[0].student.hasCv).toBe(true);
+    expect(sameBytes((await emp.client.download(`/api/applications/${appId}/cv`)).bytes, docx)).toBe(true);
+  });
+  it('replacing with a small file drops the old parts; a missing part is a 404, never a truncated file; parts go with the CV and the account', async () => {
+    const s = await makeStudent();
+    await s.client.upload('/api/cv', bigDocx(CV), 'cv.docx');
+    expect(await chunks()).toHaveLength(2);
+    await s.client.upload('/api/cv', makePdf(CV), 'a.pdf', 'application/pdf');
+    expect(await chunks()).toHaveLength(0);
+    expect((await cvRow()).content).not.toBeNull();
+    await s.client.upload('/api/cv', bigDocx(CV), 'cv.docx');
+    await sql('DELETE FROM cv_chunks WHERE seq = 1');
+    expect((await s.client.download('/api/cv/file')).status).toBe(404);
+    await s.client.upload('/api/cv', bigDocx(CV), 'cv.docx');
+    expect((await s.client.delete('/api/cv')).status).toBe(200);
+    expect(await chunks()).toHaveLength(0);
+    await s.client.upload('/api/cv', bigDocx(CV), 'cv.docx');
+    expect((await s.client.json('DELETE', '/api/profile', { password: 'Vk8#mQ2!zPw4' })).status).toBe(200);
+    expect(await chunks()).toHaveLength(0);
   });
 });
 

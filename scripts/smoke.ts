@@ -59,6 +59,7 @@ async function main() {
 
   const emp = await register('employer', n);
   d1(`UPDATE users SET status = 'active' WHERE email = 'hr${n}@smoke-co.kz'`);
+  d1(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = 'hr${n}@smoke-co.kz')`);
   await emp.j.call('POST', '/api/auth/logout');
   const li = await emp.j.call('POST', '/api/auth/login', { role: 'employer', identifier: emp.payload.email, password: PW });
   check('employer approved and signed in', li.status === 200, li.body);

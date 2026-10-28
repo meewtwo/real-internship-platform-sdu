@@ -139,5 +139,7 @@
   "STUDENT_NOT_FOUND": "Student not found",
   "EMPLOYER_REJECTED": "Your company registration was rejected, so vacancies can't be published. Contact the SDU Career Center.",
   "REJECTION_REASON_TOO_LONG": "Reason is too long (max 500 characters)",
-  "OTHER_TEXT_INVALID": "Use 2–100 characters"
+  "OTHER_TEXT_INVALID": "Use 2–100 characters",
+  "VACANCY_NOT_DRAFT": "Only a draft can be published",
+  "EMPLOYER_ALREADY_APPROVED": "Your company is approved — publish the vacancy directly"
 }

@@ -1,16 +1,16 @@
 import { Hono } from 'hono';
 import { clientIp, apiError, type AppEnv } from '../lib/http';
 import { rateLimit } from '../lib/ratelimit';
-import { SQL_TODAY, toVacancyDto, VACANCY_SELECT, type VacancyRow } from '../services/matching';
+import { STUDENT_VISIBLE, toVacancyDto, VACANCY_SELECT, type VacancyRow } from '../services/matching';
 
 /** Public (no login) data for the landing page: latest vacancies and headline numbers. No personal data. */
 export const publicApi = new Hono<AppEnv>();
 publicApi.get('/home', async (c) => {
   const rl = await rateLimit(c.var.db, c.env, `pub:${clientIp(c)}`, 120, 60);
   if (!rl.allowed) return apiError(c, 429, 'RATE_LIMITED', { retryAfter: rl.retryAfter });
-  const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE v.status = 'published' AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY}) ORDER BY v.published_at DESC LIMIT 9`);
+  const { rows } = await c.var.db.query<VacancyRow>(`${VACANCY_SELECT} WHERE ${STUDENT_VISIBLE} ORDER BY v.published_at DESC LIMIT 9`);
   const n = (await c.var.db.query<{ v: number; e: number; s: number }>(
-    `SELECT (SELECT count(*) FROM vacancies WHERE status = 'published') AS v, (SELECT count(*) FROM users WHERE role = 'employer' AND status = 'active') AS e, (SELECT count(*) FROM users WHERE role = 'student' AND status = 'active') AS s`)).rows[0];
+    `SELECT (SELECT count(*) FROM vacancies v JOIN employer_profiles ep ON ep.user_id = v.employer_id WHERE ${STUDENT_VISIBLE}) AS v, (SELECT count(*) FROM users WHERE role = 'employer' AND status = 'active') AS e, (SELECT count(*) FROM users WHERE role = 'student' AND status = 'active') AS s`)).rows[0];
   return c.json({ vacancies: rows.map((r) => ({ ...toVacancyDto(r), description: r.description.slice(0, 220) })), stats: { vacancies: n.v, employers: n.e, students: n.s } });
 });
 

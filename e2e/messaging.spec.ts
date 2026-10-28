@@ -15,6 +15,7 @@ test('candidate ↔ employer: chat, interview proposal and confirmation, calenda
   const [eCtx, sCtx] = [await mk(), await mk()];
   const emp = await apiEmployer(eCtx.request);
   await dbQuery(`UPDATE users SET status = 'active' WHERE email = $1`, [emp.email]);
+  await dbQuery(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [emp.email]); // approved like the admin flow does (publishing needs both)
   const stu = await apiStudent(sCtx.request, ['Python', 'SQL']);
 
   const e = await eCtx.newPage();
@@ -87,6 +88,7 @@ test('a closed application is read-only in the chat', async ({ browser }) => {
   const [eCtx, sCtx] = [await mk(), await mk()];
   const emp = await apiEmployer(eCtx.request);
   await dbQuery(`UPDATE users SET status = 'active' WHERE email = $1`, [emp.email]);
+  await dbQuery(`UPDATE employer_profiles SET review_status = 'approved' WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [emp.email]); // approved like the admin flow does (publishing needs both)
   const stu = await apiStudent(sCtx.request, ['Python']);
   const e = await eCtx.newPage();
   await uiLogin(e, 'employer', emp.email);

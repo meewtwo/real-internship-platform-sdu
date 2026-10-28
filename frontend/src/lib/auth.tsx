@@ -27,6 +27,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { alive = false; };
   }, []);
 
+  // the account status changes on the server (an admin approves the company): re-read it when the tab regains focus and, while the company
+  // is waiting, once a minute — otherwise the employer keeps seeing "awaiting approval" and no Publish button until signing in again
+  const waiting = user?.role === 'employer' && user.status !== 'active';
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => {
+      api<{ user: User }>('GET', '/api/auth/me')
+        .then((r) => setUserState((cur) => (cur && JSON.stringify(cur) === JSON.stringify(r.user) ? cur : r.user)))
+        .catch((e) => { if (e instanceof ApiError && e.status === 401) setUserState(null); });
+    };
+    const onFocus = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    const timer = waiting ? setInterval(refresh, 60_000) : undefined;
+    return () => { window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); clearInterval(timer); };
+  }, [!!user, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setUser = useCallback((u: User | null) => {
     setUserState(u);
     if (u) void i18n.changeLanguage(u.preferredLanguage); // the saved preference wins after sign-in

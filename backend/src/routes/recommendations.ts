@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { skillKey } from '@sdu/shared';
 import { requireAuth } from '../lib/guard';
 import type { AppEnv } from '../lib/http';
-import { loadStudentSignal, matchFor, SQL_TODAY, toVacancyDto, VACANCY_SELECT, type VacancyRow } from '../services/matching';
+import { loadStudentSignal, matchFor, STUDENT_VISIBLE, toVacancyDto, VACANCY_SELECT, type VacancyRow } from '../services/matching';
 
 export const recommendations = new Hono<AppEnv>();
 
@@ -11,7 +11,7 @@ recommendations.get('/', requireAuth('student'), async (c) => {
   const sid = c.var.auth!.user.id;
   const s = await loadStudentSignal(c.var.db, sid);
   const { rows } = await c.var.db.query<VacancyRow>(
-    `${VACANCY_SELECT} WHERE v.status = 'published' AND (v.deadline IS NULL OR v.deadline >= ${SQL_TODAY})
+    `${VACANCY_SELECT} WHERE ${STUDENT_VISIBLE}
        AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.student_id = $1 AND a.status <> 'withdrawn') ORDER BY v.published_at DESC LIMIT 500`,
     [sid],
   );

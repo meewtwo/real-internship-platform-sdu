@@ -71,10 +71,10 @@ export function VacancyDetail() {
     } finally { setBusy(false); }
   };
   const v = data?.vacancy, m = data?.match;
-  const isStudent = user?.role === 'student';
+  const isStudent = user?.role === 'student', isAdmin = user?.role === 'admin';
   return (
     <div className="mx-auto max-w-4xl">
-      <Link to={isStudent ? '/vacancies' : '/vacancies/mine'} className="mb-3 inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:underline"><ArrowLeft size={14} aria-hidden />{t('app:back')}</Link>
+      <Link to={isStudent ? '/vacancies' : isAdmin ? (v ? `/admin/companies/${v.company.id}` : '/admin/companies') : '/vacancies/mine'} className="mb-3 inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:underline"><ArrowLeft size={14} aria-hidden />{t('app:back')}</Link>
       <LoadState loading={loading && !data} error={error} />
       {v && (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -82,6 +82,7 @@ export function VacancyDetail() {
             <div className="flex items-start justify-between gap-3"><h1 className="text-[26px] font-extrabold leading-tight text-navy">{v.title}</h1>{isStudent && <FavoriteStar id={v.id} initial={data.favorite} />}</div>
             {(() => { const sl = salary(v.salaryMin, v.salaryMax); return <p className={`mt-1 ${sl.has ? 'text-[22px] font-extrabold text-navy' : 'text-[14px] text-muted'}`}>{sl.text}{sl.has && <span className="ml-2 text-[13px] font-medium text-muted">{t('app:salary.perMonth')}</span>}</p>; })()}
             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-muted">
+              {isAdmin && <StatusBadge status={v.expired && v.status === 'published' ? 'expired' : v.status} label={t(`app:company.vacancyStatus.${v.expired && v.status === 'published' ? 'expired' : v.status}`)} />}
               <span className="flex items-center gap-1"><Building2 size={14} aria-hidden />{v.company.name}</span>
               {v.company.website && <a className="flex items-center gap-1 text-brand hover:underline" href={v.company.website} target="_blank" rel="noopener noreferrer nofollow"><Globe size={14} aria-hidden />{v.company.website.replace(/^https?:\/\//, '')}</a>}
             </p>
@@ -126,7 +127,7 @@ export function VacancyDetail() {
                   </form>
                 )}
               </Card>
-            ) : <p className="rounded-2xl bg-brand-50 p-3 text-[12px] font-semibold text-navy">{t('app:detail.employerView')}</p>}
+            ) : <p className="rounded-2xl bg-brand-50 p-3 text-[12px] font-semibold text-navy">{t(isAdmin ? 'app:detail.adminView' : 'app:detail.employerView')}</p>}
           </div>
         </div>
       )}
